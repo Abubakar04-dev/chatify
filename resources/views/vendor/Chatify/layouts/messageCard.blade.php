@@ -5,13 +5,14 @@ $timeAndSeen = "<span data-time='$created_at' class='message-time'>
     </span>";
 ?>
 
-<div class="message-card @if($isSender) mc-sender @endif" data-id="{{ $id }}">
+<div class="message-card @if($isSender) mc-sender @endif" data-id="{{ $id }}" data-type="private">
     {{-- Delete Message Button --}}
     @if ($isSender)
         <div class="actions">
             <i class="fas fa-trash delete-btn" data-id="{{ $id }}"></i>
         </div>
     @endif
+    
     {{-- Card --}}
     <div class="message-card-content">
         @if (@$attachment->type != 'image' || $message)
@@ -25,6 +26,7 @@ $timeAndSeen = "<span data-time='$created_at' class='message-time'>
                 @endif
             </div>
         @endif
+        
         @if(@$attachment->type == 'image')
         <div class="image-wrapper" style="text-align: {{$isSender ? 'end' : 'start'}}">
             <div class="image-file chat-image" style="background-image: url('{{ Chatify::getAttachmentUrl($attachment->file) }}')">
@@ -35,5 +37,11 @@ $timeAndSeen = "<span data-time='$created_at' class='message-time'>
             </div>
         </div>
         @endif
+        
+        {{-- 🔥 REACTIONS CONTAINER --}}
+        <div class="message-reactions" id="reactions-{{ $id }}">
+            {{-- Reactions will be loaded here dynamically --}}
+        </div>
     </div>
 </div>
+

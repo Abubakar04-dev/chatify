@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -35,6 +36,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/groups/{group}/make-admin', [GroupController::class, 'makeAdmin']);
     Route::post('/groups/{group}/leave', [GroupController::class, 'leaveGroup']);
     Route::post('/groups/{group}/update', [GroupController::class, 'updateGroup']);
+
+
+    // Message Reactions Routes
+    Route::post('/reactions/toggle-private', [MessageReactionController::class, 'togglePrivateReaction']);
+    Route::post('/reactions/toggle-group', [MessageReactionController::class, 'toggleGroupReaction']);
+    Route::post('/reactions/get', [MessageReactionController::class, 'getReactions']);
 });
 
 require __DIR__ . '/auth.php';

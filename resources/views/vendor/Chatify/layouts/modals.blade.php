@@ -548,4 +548,21 @@
         .message-card .chat-image {
             display: inline-block !important;
         }
+
+        /* Reaction picker - Teams style */
+        #reaction-picker .reaction-btn:hover {
+            background: #f0f0f0 !important;
+            transform: scale(1.15) !important;
+            border-radius: 4px !important;
+        }
+
+        /* Dark mode */
+        .dark-mode #reaction-picker {
+            background: #2d3436 !important;
+            border-color: #636e72 !important;
+        }
+
+        .dark-mode #reaction-picker .reaction-btn:hover {
+            background: #1a1a2e !important;
+        }
     </style>

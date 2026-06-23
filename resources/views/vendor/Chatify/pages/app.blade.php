@@ -113,7 +113,19 @@
         {!! view('Chatify::layouts.info')->render() !!}
     </div>
 </div>
-
+<!-- ============================================
+    REACTION PICKER - TEAMS STYLE
+============================================ -->
+<div id="reaction-picker" style="display:none; position:fixed; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.12); padding:4px 6px; z-index:999999; border:1px solid #e9ecef;">
+    <div style="display:flex; gap:2px;">
+        <button class="reaction-btn" data-reaction="👍" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">👍</button>
+        <button class="reaction-btn" data-reaction="❤️" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">❤️</button>
+        <button class="reaction-btn" data-reaction="😂" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😂</button>
+        <button class="reaction-btn" data-reaction="😮" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😮</button>
+        <button class="reaction-btn" data-reaction="😢" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😢</button>
+        <button class="reaction-btn" data-reaction="😡" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😡</button>
+    </div>
+</div>>
 
 @include('Chatify::layouts.modals')
 @include('Chatify::layouts.footerLinks')

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class ChatGroupMessage extends Model
 {
@@ -34,5 +35,44 @@ class ChatGroupMessage extends Model
     public function isReadBy($userId)
     {
         return $this->reads()->where('user_id', $userId)->exists();
+    }
+
+
+    // 🔥 ADD REACTIONS RELATIONSHIP
+    public function reactions()
+    {
+        return $this->hasMany(MessageReaction::class, 'message_id');
+    }
+
+    // Check if message is read by a user
+    // public function isReadBy($userId)
+    // {
+    //     return $this->reads()->where('user_id', $userId)->exists();
+    // }
+
+    // 🔥 ADD HELPER METHODS FOR REACTIONS
+    public function getReactionsGroupedAttribute()
+    {
+        return $this->reactions()
+            ->select('reaction', DB::raw('count(*) as count'))
+            ->groupBy('reaction')
+            ->get()
+            ->pluck('count', 'reaction')
+            ->toArray();
+    }
+
+    public function hasUserReaction($userId, $reaction)
+    {
+        return $this->reactions()
+            ->where('user_id', $userId)
+            ->where('reaction', $reaction)
+            ->exists();
+    }
+
+    public function getUserReaction($userId)
+    {
+        return $this->reactions()
+            ->where('user_id', $userId)
+            ->first();
     }
 }

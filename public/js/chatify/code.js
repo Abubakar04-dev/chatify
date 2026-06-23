@@ -568,6 +568,10 @@ function fetchMessages(id, newFetch = false) {
         setMessagesLoading(false);
         if (messagesPage == 1) {
           messagesElement.html(data.messages);
+          // 🔥 ADD THIS - Load reactions for private messages
+          setTimeout(function () {
+            loadAllMessageReactions('.messages', 'private');
+          }, 500);
           scrollToBottom(messagesContainer);
         } else {
           const lastMsg = messagesElement.find(
@@ -576,6 +580,10 @@ function fetchMessages(id, newFetch = false) {
           const curOffset =
             lastMsg.offset().top - messagesContainer.scrollTop();
           messagesElement.prepend(data.messages);
+          // 🔥 ADD THIS - Load reactions for newly loaded messages
+          setTimeout(function () {
+            loadAllMessageReactions('.messages', 'private');
+          }, 500);
           messagesContainer.scrollTop(lastMsg.offset().top - curOffset);
         }
         // trigger seen event
@@ -2452,7 +2460,11 @@ $(document).ready(function () {
     window.groupChannel.bind('pusher:subscription_succeeded', function () {
       console.log('✅ Subscribed to group.' + groupId);
     });
+    // 🔥 BIND GROUP REACTIONS
+    bindGroupReactions(window.groupChannel);
   });
+
+
 
   // ============================================
   // LOAD GROUP MESSAGES
@@ -2483,6 +2495,10 @@ $(document).ready(function () {
       }
 
       console.log('📨 Messages rendered:', $('.messages .message-card').length);
+      // 🔥 ADD THIS - Load reactions for group messages
+      setTimeout(function () {
+        loadAllMessageReactions('.messages', 'group');
+      }, 500);
 
       setTimeout(function () {
         scrollToBottom(messagesContainer);
@@ -3175,3 +3191,299 @@ window.IDinfo = function (id) {
 };
 
 console.log('✅ Group members functionality initialized!');
+// ============================================
+// MESSAGE REACTIONS - CLICK TO SHOW (Teams Style)
+// ============================================
+
+let currentReactionMessageId = null;
+let currentReactionMessageType = null;
+let pickerVisible = false;
+
+console.log('🔧 Initializing message reactions...');
+
+// ============================================
+// SHOW REACTION PICKER ON CLICK
+// ============================================
+$(document).on('click', '.message-card', function (e) {
+    // Don't show on user name, time, or existing reactions
+    if ($(e.target).closest('.message-user, .message-time, .message-reactions, .reaction-badge, .actions, .delete-btn').length) {
+        return;
+    }
+
+    // Don't show on your own messages
+    let isOwnMessage = $(this).hasClass('mc-sender');
+    if (isOwnMessage) {
+        return;
+    }
+
+    let messageId = $(this).data('id') || $(this).data('message-id');
+    
+    // Better group detection
+    let isGroup = false;
+    if ($(this).closest('.group-chat-messages').length > 0) {
+        isGroup = true;
+    } else if (window.isGroupChat === true) {
+        isGroup = true;
+    } else if (window.groupState && window.groupState.isGroupChat === true) {
+        isGroup = true;
+    } else if ($(this).data('type') === 'group') {
+        isGroup = true;
+    }
+
+    if (!messageId) {
+        console.warn('⚠️ No message ID found');
+        return;
+    }
+
+    // If clicking the same message, toggle picker off
+    if (currentReactionMessageId === messageId && $('#reaction-picker').is(':visible')) {
+        $('#reaction-picker').fadeOut(150);
+        pickerVisible = false;
+        currentReactionMessageId = null;
+        return;
+    }
+
+    showReactionPicker(this, messageId, isGroup);
+});
+
+// ============================================
+// SHOW REACTION PICKER - BELOW MESSAGE
+// ============================================
+function showReactionPicker(element, messageId, isGroup) {
+    let rect = element.getBoundingClientRect();
+    let picker = $('#reaction-picker');
+
+    // Position BELOW the message
+    let top = rect.bottom + 6;
+    let left = rect.left;
+
+    // If not enough space below, show above
+    if (top + 50 > window.innerHeight) {
+        top = rect.top - 50;
+    }
+
+    // Make sure it's in viewport horizontally
+    if (left + 200 > window.innerWidth) {
+        left = window.innerWidth - 210;
+    }
+    if (left < 5) left = 5;
+
+    picker.css({
+        top: top + 'px',
+        left: left + 'px',
+        position: 'fixed',
+        zIndex: 999999
+    }).fadeIn(150);
+
+    pickerVisible = true;
+    currentReactionMessageId = messageId;
+    currentReactionMessageType = isGroup ? 'group' : 'private';
+
+    console.log('📌 Picker shown:', { messageId, isGroup });
+
+    // Hide picker after 3 seconds if no interaction
+    clearTimeout(window.reactionPickerTimeout);
+    window.reactionPickerTimeout = setTimeout(function () {
+        if (!$('#reaction-picker').is(':hover')) {
+            $('#reaction-picker').fadeOut(150);
+            pickerVisible = false;
+            currentReactionMessageId = null;
+        }
+    }, 3000);
+}
+
+// ============================================
+// KEEP PICKER VISIBLE WHEN HOVERING OVER IT
+// ============================================
+$(document).on('mouseenter', '#reaction-picker', function () {
+    clearTimeout(window.reactionPickerTimeout);
+    pickerVisible = true;
+});
+
+$(document).on('mouseleave', '#reaction-picker', function () {
+    $('#reaction-picker').fadeOut(150);
+    pickerVisible = false;
+    currentReactionMessageId = null;
+});
+
+// ============================================
+// HIDE PICKER WHEN CLICKING ELSEWHERE
+// ============================================
+$(document).on('click', function (e) {
+    if (!$(e.target).closest('#reaction-picker').length && !$(e.target).closest('.message-card').length) {
+        $('#reaction-picker').fadeOut(150);
+        pickerVisible = false;
+        currentReactionMessageId = null;
+    }
+});
+
+// ============================================
+// REACTION BUTTON CLICK
+// ============================================
+$(document).on('click', '.reaction-btn', function () {
+    let reaction = $(this).data('reaction');
+
+    if (!currentReactionMessageId) {
+        console.warn('⚠️ No message selected');
+        return;
+    }
+
+    let url = currentReactionMessageType === 'group'
+        ? '/reactions/toggle-group'
+        : '/reactions/toggle-private';
+
+    $.ajax({
+        url: url,
+        type: 'POST',
+        data: {
+            _token: csrfToken,
+            message_id: currentReactionMessageId,
+            reaction: reaction
+        },
+        success: function (response) {
+            if (response.success) {
+                updateReactionsDisplay(currentReactionMessageId, response.reactions);
+                $('#reaction-picker').fadeOut(150);
+                pickerVisible = false;
+                currentReactionMessageId = null;
+                console.log('✅ Reaction added:', reaction);
+            }
+        },
+        error: function (xhr) {
+            console.error('Failed to add reaction:', xhr);
+            let errorMsg = xhr.responseJSON?.message || xhr.responseJSON?.error || 'Failed to add reaction';
+            alert('❌ ' + errorMsg);
+        }
+    });
+});
+
+// ============================================
+// UPDATE REACTIONS DISPLAY
+// ============================================
+function updateReactionsDisplay(messageId, reactions) {
+    let messageCard = $(`.message-card[data-id="${messageId}"], .message-card[data-message-id="${messageId}"]`);
+
+    if (!messageCard.length) {
+        console.warn('⚠️ Message card not found:', messageId);
+        return;
+    }
+
+    messageCard.find('.message-reactions').remove();
+
+    if (!reactions || reactions.length === 0) return;
+
+    let grouped = {};
+    reactions.forEach(r => {
+        if (!grouped[r.reaction]) grouped[r.reaction] = [];
+        grouped[r.reaction].push(r.user_id);
+    });
+
+    let html = '<div class="message-reactions" style="display:flex; gap:3px; margin-top:4px; flex-wrap:wrap;">';
+    for (let [emoji, users] of Object.entries(grouped)) {
+        let count = users.length;
+        let hasUserReacted = users.includes(parseInt(auth_id));
+        html += `
+            <span class="reaction-badge ${hasUserReacted ? 'active' : ''}" 
+                  data-message-id="${messageId}" 
+                  data-reaction="${emoji}"
+                  style="display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:${hasUserReacted ? '#e8f5e9' : '#f1f2f6'}; border-radius:12px; font-size:13px; cursor:pointer; border:${hasUserReacted ? '1px solid #4caf50' : '1px solid transparent'}; transition:all 0.2s;">
+                ${emoji} ${count}
+            </span>
+        `;
+    }
+    html += '</div>';
+
+    messageCard.find('.message').append(html);
+}
+
+// ============================================
+// CLICK ON REACTION BADGE TO TOGGLE
+// ============================================
+$(document).on('click', '.reaction-badge', function (e) {
+    e.stopPropagation();
+    let messageId = $(this).data('message-id');
+    let reaction = $(this).data('reaction');
+    let isGroup = $(this).closest('.group-chat-messages').length > 0 || window.isGroupChat;
+
+    let url = isGroup ? '/reactions/toggle-group' : '/reactions/toggle-private';
+
+    $.ajax({
+        url: url,
+        type: 'POST',
+        data: {
+            _token: csrfToken,
+            message_id: messageId,
+            reaction: reaction
+        },
+        success: function (response) {
+            if (response.success) {
+                updateReactionsDisplay(messageId, response.reactions);
+            }
+        },
+        error: function (xhr) {
+            console.error('Failed to toggle reaction:', xhr);
+        }
+    });
+});
+
+// ============================================
+// LOAD EXISTING REACTIONS FOR MESSAGES
+// ============================================
+function loadMessageReactions(messageId, type) {
+    $.ajax({
+        url: '/reactions/get',
+        type: 'POST',
+        data: {
+            _token: csrfToken,
+            message_id: messageId,
+            type: type
+        },
+        success: function (response) {
+            if (response.success && response.reactions.length > 0) {
+                updateReactionsDisplay(messageId, response.reactions);
+            }
+        },
+        error: function (xhr) {
+            console.error('Failed to load reactions:', xhr);
+        }
+    });
+}
+
+// ============================================
+// LOAD REACTIONS FOR ALL MESSAGES
+// ============================================
+function loadAllMessageReactions(container, type) {
+    $(container).find('.message-card').each(function () {
+        let messageId = $(this).data('id') || $(this).data('message-id');
+        if (messageId) {
+            loadMessageReactions(messageId, type);
+        }
+    });
+}
+
+// ============================================
+// PUSHER - PRIVATE MESSAGE REACTIONS
+// ============================================
+if (typeof pusher !== 'undefined') {
+    pusher.bind('App\\Events\\MessageReactionEvent', function (data) {
+        if (data.type === 'private') {
+            updateReactionsDisplay(data.message_id, data.reactions);
+            console.log('✅ Private reaction received:', data);
+        }
+    });
+}
+
+// ============================================
+// PUSHER - GROUP MESSAGE REACTIONS
+// ============================================
+function bindGroupReactions(channel) {
+    if (!channel) return;
+    channel.bind('App\\Events\\MessageReactionEvent', function (data) {
+        if (data.type === 'group') {
+            updateReactionsDisplay(data.message_id, data.reactions);
+            console.log('✅ Group reaction received:', data);
+        }
+    });
+}
+
+console.log('✅ Message reactions initialized!');
