@@ -75,8 +75,15 @@ class MessageReactionController extends Controller
             $action = 'added';
         }
 
+        // $reactions = MessageReaction::where('message_id', $messageId)
+        //     ->with('user')
+        //     ->get();
+
         $reactions = MessageReaction::where('message_id', $messageId)
-            ->with('user')
+            ->where('message_type', $type)
+            ->with(['user' => function ($query) {
+                $query->select('id', 'name', 'avatar'); // 🔥 Use 'name' not 'user'
+            }])
             ->get();
 
         // Broadcast the reaction update
@@ -97,8 +104,14 @@ class MessageReactionController extends Controller
             'type' => 'required|in:private,group'
         ]);
 
+        // $reactions = MessageReaction::where('message_id', $request->message_id)
+        //     ->with('user')
+        //     ->get();
         $reactions = MessageReaction::where('message_id', $request->message_id)
-            ->with('user')
+            ->where('message_type', $request->type)
+            ->with(['user' => function ($query) {
+                $query->select('id', 'name', 'avatar');
+            }])
             ->get();
 
         return response()->json([

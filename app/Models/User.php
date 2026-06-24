@@ -46,4 +46,9 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function reactions()
+    {
+        return $this->hasMany(MessageReaction::class, 'user_id');
+    }
 }

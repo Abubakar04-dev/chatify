@@ -125,7 +125,21 @@
         <button class="reaction-btn" data-reaction="😢" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😢</button>
         <button class="reaction-btn" data-reaction="😡" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😡</button>
     </div>
-</div>>
+</div>
+<!-- ============================================
+    REACTION TOOLTIP
+============================================ -->
+<div id="reaction-tooltip" style="display:none; position:fixed; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); padding:8px 12px; z-index:999999; border:1px solid #e9ecef; max-width:250px; min-width:120px;">
+    <div style="font-size:12px; color:#636e72; margin-bottom:4px; font-weight:500;">
+        <span id="reaction-tooltip-emoji"></span>
+        <span id="reaction-tooltip-count"></span>
+    </div>
+    <div id="reaction-tooltip-users" style="font-size:13px; color:#2d3436; max-height:100px; overflow-y:auto;">
+        <!-- User names will be inserted here -->
+    </div>
+</div>
+
+
 
 @include('Chatify::layouts.modals')
 @include('Chatify::layouts.footerLinks')

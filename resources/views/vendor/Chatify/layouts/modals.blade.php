@@ -565,4 +565,94 @@
         .dark-mode #reaction-picker .reaction-btn:hover {
             background: #1a1a2e !important;
         }
+
+        /* ============================================
+   UNREAD BADGE FOR GROUPS
+============================================ */
+        .group-item .contact-item-unread {
+            position: absolute !important;
+            top: -5px !important;
+            right: -5px !important;
+            background: #ff4757 !important;
+            color: #fff !important;
+            border-radius: 50% !important;
+            padding: 2px 6px !important;
+            font-size: 10px !important;
+            font-weight: 600 !important;
+            min-width: 18px !important;
+            height: 18px !important;
+            text-align: center !important;
+            line-height: 14px !important;
+            border: 2px solid #fff !important;
+            z-index: 999 !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        /* Make sure the avatar has position: relative */
+        .group-item .avatar {
+            position: relative !important;
+        }
+
+        /* Fix the time display - "NaNw ago" */
+        .contact-item-time {
+            font-size: 11px !important;
+            color: #b2bec3 !important;
+        }
+
+        /* ============================================
+   REACTION TOOLTIP
+============================================ */
+#reaction-tooltip {
+    animation: fadeInUp 0.15s ease;
+    pointer-events: auto;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#reaction-tooltip #reaction-tooltip-users {
+    scrollbar-width: thin;
+    scrollbar-color: #dfe6e9 transparent;
+}
+
+#reaction-tooltip #reaction-tooltip-users::-webkit-scrollbar {
+    width: 4px;
+}
+
+#reaction-tooltip #reaction-tooltip-users::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#reaction-tooltip #reaction-tooltip-users::-webkit-scrollbar-thumb {
+    background: #dfe6e9;
+    border-radius: 10px;
+}
+
+/* Dark mode */
+.dark-mode #reaction-tooltip {
+    background: #2d3436;
+    border-color: #636e72;
+}
+
+.dark-mode #reaction-tooltip #reaction-tooltip-users {
+    color: #fff;
+}
+
+.dark-mode #reaction-tooltip #reaction-tooltip-emoji {
+    color: #fff;
+}
+
+.dark-mode #reaction-tooltip #reaction-tooltip-count {
+    color: #b2bec3;
+}
     </style>

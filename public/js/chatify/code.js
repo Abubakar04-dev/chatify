@@ -45,6 +45,13 @@ const pusher = new Pusher(chatify.pusher.key, {
     },
   },
 });
+
+// ============================================
+if (typeof pusher !== 'undefined') {
+  pusher.bind_global(function (eventName, data) {
+    console.log('🌐 ALL EVENTS:', eventName, data);
+  });
+}
 /**
  *-------------------------------------------------------------
  * Re-usable methods
@@ -569,9 +576,9 @@ function fetchMessages(id, newFetch = false) {
         if (messagesPage == 1) {
           messagesElement.html(data.messages);
           // 🔥 ADD THIS - Load reactions for private messages
-          setTimeout(function () {
-            loadAllMessageReactions('.messages', 'private');
-          }, 500);
+          // setTimeout(function () {
+          //   loadAllMessageReactions('.messages', 'private');
+          // }, 500);
           scrollToBottom(messagesContainer);
         } else {
           const lastMsg = messagesElement.find(
@@ -1769,7 +1776,15 @@ function playNotificationSound(soundName, condition = false) {
     const sound = new Audio(
       `/${chatify.sounds.public_path}/${chatify.sounds[soundName]}`
     );
-    sound.play();
+
+    // 🔥 Handle the play promise to prevent the error
+    const playPromise = sound.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function (error) {
+        // Silently fail - user hasn't interacted with the page yet
+        console.log('🔇 Audio play prevented (no user interaction yet)');
+      });
+    }
   }
 }
 /**
@@ -1797,213 +1812,396 @@ setInterval(() => {
  *-------------------------------------------------------------
  */
 
-// Store group data
-window.groupState = {
-  currentGroupId: null,
-  isGroupChat: false,
-  messagesCache: {},
-  activeTab: 'private' // 'private' or 'group'
-};
+// // Store group data
+// window.groupState = {
+//   currentGroupId: null,
+//   isGroupChat: false,
+//   messagesCache: {},
+//   activeTab: 'private' // 'private' or 'group'
+// };
 
-// Single group message handler
-$(document).ready(function () {
-  console.log('🔧 Initializing group chat handler...');
+// // Single group message handler
+// $(document).ready(function () {
+//   console.log('🔧 Initializing group chat handler...');
 
-  if (typeof pusher === 'undefined') {
-    console.error('❌ Pusher not available!');
+//   if (typeof pusher === 'undefined') {
+//     console.error('❌ Pusher not available!');
+//     return;
+//   }
+
+//   // Unbind any existing handlers
+//   pusher.unbind('App\\Events\\GroupMessageSent');
+
+//   pusher.bind('App\\Events\\GroupMessageSent', function (data) {
+//     console.log('📨 Group message received!', data);
+
+//     const messageData = data.message || data;
+//     const groupId = messageData.group_id;
+//     const senderId = messageData.sender_id;
+
+//     // Skip own messages
+//     if (senderId == auth_id) {
+//       console.log('⏭️ Own message, skipping');
+//       return;
+//     }
+
+//     // ============================================
+//     // 1. UPDATE SIDEBAR - UNREAD INDICATOR (FIXED)
+//     // ============================================
+//     let groupItem = $(`.group-item[data-group-id="${groupId}"]`);
+
+//     if (groupItem.length) {
+//       let isCurrentGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
+
+//       // 🔥 Get sender name
+//       let senderName = messageData.sender ? messageData.sender.name : 'Someone';
+//       let lastMessageText = messageData.message || 'New message';
+//       let previewText = senderName + ': ' + lastMessageText;
+//       if (previewText.length > 40) {
+//         previewText = previewText.substring(0, 40) + '...';
+//       }
+
+//       // 🔥 UPDATE PREVIEW
+//       groupItem.find('td:last-child span').text(previewText);
+//       groupItem.find('.contact-item-time').text('Just now');
+
+//       // 🔥 UPDATE UNREAD BADGE (ONLY IF NOT VIEWING THIS GROUP)
+//       if (!isCurrentGroup) {
+//         let badge = groupItem.find('.contact-item-unread');
+//         let avatar = groupItem.find('.avatar');
+
+//         if (badge.length) {
+//           let count = parseInt(badge.text()) + 1;
+//           badge.text(count);
+//           console.log('🔔 Updated badge count:', count);
+//         } else if (avatar.length) {
+//           // 🔥 ADD BADGE
+//           avatar.append(`<span class="contact-item-unread">1</span>`);
+//           console.log('🔔 Created new badge');
+//         } else {
+//           // Fallback - add to first td
+//           groupItem.find('td:first-child').append(`<span class="contact-item-unread">1</span>`);
+//         }
+//       }
+
+//       // 🔥 MOVE TO TOP
+//       let parent = groupItem.parent();
+//       if (parent.length) {
+//         parent.prepend(groupItem);
+//       }
+//     } else {
+//       console.warn('⚠️ Group item not found for ID:', groupId);
+//     }
+
+//     // ============================================
+//     // 2. SHOW BROWSER NOTIFICATIONS
+//     // ============================================
+//     // Show notification when tab is hidden OR when not viewing this group
+//     let shouldNotify = document.hidden ||
+//       !window.groupState.isGroupChat ||
+//       window.groupState.currentGroupId != groupId;
+
+//     if (shouldNotify && Notification.permission === "granted") {
+//       let groupName = groupItem.length ?
+//         groupItem.find('p[data-id]').text().trim() :
+//         'Group Chat';
+
+//       // Get sender name
+//       let senderName = messageData.sender ? messageData.sender.name : 'Someone';
+
+//       // Extract message text
+//       let tempDiv = document.createElement("div");
+//       tempDiv.innerHTML = messageData.message;
+//       let messageText = (tempDiv.textContent || tempDiv.innerText || "").trim();
+
+//       if (messageText.length > 80) {
+//         messageText = messageText.substring(0, 80) + "...";
+//       }
+
+//       // Show notification with sender name
+//       new Notification(senderName + ' in ' + groupName, {
+//         body: messageText || "Sent a message",
+//         icon: "/favicon.ico",
+//       });
+
+//       console.log('🔔 Browser notification shown for group:', groupId);
+//     }
+
+//     // Play sound for all group messages (always)
+//     if (typeof playNotificationSound === 'function') {
+//       playNotificationSound("new_message", true);
+//     }
+
+//     // ============================================
+//     // 3. DISPLAY MESSAGE (only if viewing this group)
+//     // ============================================
+//     if (!window.groupState.isGroupChat || !window.groupState.currentGroupId) {
+//       console.log('⏭️ Not in group chat mode');
+//       return;
+//     }
+
+//     if (groupId != window.groupState.currentGroupId) {
+//       console.log('⏭️ Different group');
+//       return;
+//     }
+
+//     // Check if we're actually showing group messages
+//     if (window.groupState.activeTab !== 'group') {
+//       console.log('⏭️ Not in group tab');
+//       return;
+//     }
+
+//     if ($(`.messages [data-message-id="${messageData.id}"]`).length > 0) {
+//       console.log('⏭️ Duplicate message');
+//       return;
+//     }
+
+
+//     // Display messeg 
+//     let senderName = messageData.sender ? messageData.sender.name : 'Unknown';
+//     let displayName = messageData.sender ? messageData.sender.name : 'Unknown';
+//     let messageContent = '';
+//     let messageTime = messageData.created_at ? new Date(messageData.created_at) : new Date();
+//     let timeDisplay = messageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+//     // Add text message
+//     if (messageData.message) {
+//       messageContent += '<div class="message-text">' + messageData.message + '</div>';
+//     }
+
+//     // Add attachment if exists
+//     if (messageData.attachment) {
+//       let fileUrl = '/storage/' + messageData.attachment;
+//       let isImage = messageData.attachment_type && messageData.attachment_type.startsWith('image/');
+
+//       if (isImage) {
+//         messageContent += '<div class="chat-image" style="background-image: url(' + fileUrl + '); max-width:200px; max-height:200px; background-size:cover; background-position:center; border-radius:8px; margin-top:5px; cursor:pointer;"></div>';
+//       } else {
+//         let fileName = messageData.attachment.split('/').pop();
+//         messageContent += '<div class="file-attachment" style="padding:6px 10px; background:#f1f2f6; border-radius:6px; margin-top:4px; display:inline-block;">';
+//         messageContent += '<i class="fas fa-paperclip" style="font-size:12px;"></i> <a href="' + fileUrl + '" target="_blank" style="color:#0984e3; text-decoration:none; font-size:13px;">' + fileName + '</a>';
+//         messageContent += '</div>';
+//       }
+//     }
+
+//     // 🔥 Check if we need to add a date divider
+//     let shouldAddDivider = false;
+//     let lastMessageDate = window._lastMessageDate || null;
+//     let currentDate = new Date().toDateString();
+
+//     if (lastMessageDate !== currentDate) {
+//       shouldAddDivider = true;
+//       window._lastMessageDate = currentDate;
+//     }
+
+//     if (shouldAddDivider) {
+//       let dateDisplay = 'Today';
+//       let now = new Date();
+//       let msgDate = new Date(messageData.created_at);
+
+//       if (msgDate.toDateString() === now.toDateString()) {
+//         dateDisplay = 'Today';
+//       } else {
+//         let yesterday = new Date(now);
+//         yesterday.setDate(yesterday.getDate() - 1);
+//         if (msgDate.toDateString() === yesterday.toDateString()) {
+//           dateDisplay = 'Yesterday';
+//         } else {
+//           dateDisplay = msgDate.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+//         }
+//       }
+
+//       $('.messages').append(`
+//         <div class="date-divider">
+//             <span>${dateDisplay}</span>
+//         </div>
+//     `);
+//     }
+
+//     $('.messages').find('.message-hint').hide();
+//     $('.messages').append(`
+//     <div class="message-card mc-receiver" data-message-id="${messageData.id}">
+//         <div class="message">
+//             <div class="message-user" style="font-size:11px; font-weight:600; color:#636e72; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
+//                 <span>${displayName}</span>
+//                 <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">${timeDisplay}</span>
+//             </div>
+//             ${messageContent}
+//         </div>
+//     </div>
+// `);
+
+//     scrollToBottom(messagesContainer);
+//     console.log('✅ Group message displayed!');
+//   });
+
+//   console.log('✅ Group handler ready!');
+// });
+
+// ============================================
+// GROUP MESSAGE HANDLER - FINAL FIXED
+// ============================================
+
+// Initialize group state
+if (typeof window.groupState === 'undefined') {
+  window.groupState = {
+    currentGroupId: null,
+    isGroupChat: false
+  };
+}
+
+// Global event listener
+if (typeof pusher !== 'undefined') {
+  pusher.bind_global(function (eventName, data) {
+    console.log('🌐 GLOBAL EVENT:', eventName, data);
+
+    if (eventName === 'App\\Events\\GroupMessageSent') {
+      console.log('🎯 GROUP EVENT CAPTURED!', data);
+      handleGroupMessage(data);
+    }
+  });
+}
+
+// Main group message handler
+function handleGroupMessage(data) {
+  console.log('📨 Processing group message:', data);
+
+  var messageData = data.message || data;
+  var groupId = messageData.group_id;
+  var senderId = messageData.sender_id;
+
+  // Skip own messages
+  if (senderId == auth_id) {
+    console.log('⏭️ Own message, skipping');
     return;
   }
 
-  // Unbind any existing handlers
-  pusher.unbind('App\\Events\\GroupMessageSent');
+  // ============================================
+  // 1. UPDATE SIDEBAR - ALWAYS
+  // ============================================
+  var groupItem = $(`.group-item[data-group-id="${groupId}"]`);
 
-  pusher.bind('App\\Events\\GroupMessageSent', function (data) {
-    console.log('📨 Group message received!', data);
+  if (groupItem.length) {
+    console.log('✅ Group found in sidebar');
 
-    const messageData = data.message || data;
-    const groupId = messageData.group_id;
-    const senderId = messageData.sender_id;
+    // 🔥 Check if we're viewing THIS group
+    var isViewingThisGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
 
-    // Skip own messages
-    if (senderId == auth_id) {
-      console.log('⏭️ Own message, skipping');
-      return;
-    }
 
-    // ============================================
-    // 1. UPDATE SIDEBAR - UNREAD INDICATOR
-    // ============================================
-    let groupItem = $(`.group-item[data-group-id="${groupId}"]`);
-    if (groupItem.length) {
-      let isCurrentGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
+    // Update last message preview (ALWAYS)
+    var senderName = messageData.sender ? messageData.sender.name : 'Someone';
+    var messageText = messageData.message || 'New message';
+    var preview = senderName + ': ' + messageText;
+    if (preview.length > 40) preview = preview.substring(0, 40) + '...';
 
-      // Always update last message preview
-      let lastMessageText = messageData.message || 'New message';
-      if (lastMessageText.length > 35) {
-        lastMessageText = lastMessageText.substring(0, 35) + '...';
-      }
-      groupItem.find('td:last-child span').text(lastMessageText);
-      groupItem.find('.contact-item-time').text('Just now');
+    groupItem.find('td:last-child span').text(preview);
+    groupItem.find('.contact-item-time').text('Just now');
 
-      // Only increment unread count if NOT currently viewing this group
-      if (!isCurrentGroup) {
-        let badge = groupItem.find('.contact-item-unread');
-        if (badge.length) {
-          let count = parseInt(badge.text()) + 1;
-          badge.text(count);
-        } else {
-          groupItem.find('.avatar').append(`<span class="contact-item-unread">1</span>`);
-        }
-        console.log('🔔 Unread count updated for group:', groupId);
+    // 🔥 UPDATE UNREAD BADGE - ONLY IF NOT VIEWING THIS GROUP
+    if (!isViewingThisGroup) {
+      var badge = groupItem.find('.contact-item-unread');
+      var avatar = groupItem.find('.avatar');
+
+      if (badge.length) {
+        var count = parseInt(badge.text()) + 1;
+        badge.text(count);
+      } else if (avatar.length) {
+        avatar.append('<span class="contact-item-unread">1</span>');
       } else {
-        console.log('👁️ Currently viewing this group, not incrementing unread count');
+        // Fallback
+        groupItem.find('td:first-child').append('<span class="contact-item-unread">1</span>');
       }
+    } else {
+      console.log('👁️ Viewing this group, not adding badge');
     }
 
-    // ============================================
-    // 2. SHOW BROWSER NOTIFICATIONS
-    // ============================================
-    // Show notification when tab is hidden OR when not viewing this group
-    let shouldNotify = document.hidden ||
-      !window.groupState.isGroupChat ||
-      window.groupState.currentGroupId != groupId;
-
-    if (shouldNotify && Notification.permission === "granted") {
-      let groupName = groupItem.length ?
-        groupItem.find('p[data-id]').text().trim() :
-        'Group Chat';
-
-      // Get sender name
-      let senderName = messageData.sender ? messageData.sender.name : 'Someone';
-
-      // Extract message text
-      let tempDiv = document.createElement("div");
-      tempDiv.innerHTML = messageData.message;
-      let messageText = (tempDiv.textContent || tempDiv.innerText || "").trim();
-
-      if (messageText.length > 80) {
-        messageText = messageText.substring(0, 80) + "...";
-      }
-
-      // Show notification with sender name
-      new Notification(senderName + ' in ' + groupName, {
-        body: messageText || "Sent a message",
-        icon: "/favicon.ico",
-      });
-
-      console.log('🔔 Browser notification shown for group:', groupId);
+    // Move to top (ALWAYS)
+    var parent = groupItem.parent();
+    if (parent.length) {
+      parent.prepend(groupItem);
     }
-
-    // Play sound for all group messages (always)
-    if (typeof playNotificationSound === 'function') {
-      playNotificationSound("new_message", true);
+  } else {
+    // Try to reload groups
+    if (typeof loadGroups === 'function') {
+      loadGroups();
     }
+  }
 
-    // ============================================
-    // 3. DISPLAY MESSAGE (only if viewing this group)
-    // ============================================
-    if (!window.groupState.isGroupChat || !window.groupState.currentGroupId) {
-      console.log('⏭️ Not in group chat mode');
-      return;
+  // ============================================
+  // 2. BROWSER NOTIFICATIONS - ONLY WHEN TAB HIDDEN
+  // ============================================
+  if (document.hidden && Notification.permission === "granted") {
+    var groupName = groupItem.length ? groupItem.find('p[data-id]').text().trim() : 'Group Chat';
+    var senderName = messageData.sender ? messageData.sender.name : 'Someone';
+    var msgText = messageData.message || 'New message';
+    if (msgText.length > 80) msgText = msgText.substring(0, 80) + '...';
+
+    new Notification(senderName + ' in ' + groupName, {
+      body: msgText,
+      icon: '/favicon.ico'
+    });
+    console.log('🔔 Notification shown (tab hidden)');
+  }
+
+  // ============================================
+  // 3. PLAY SOUND
+  // ============================================
+  if (typeof playNotificationSound === 'function') {
+    playNotificationSound('new_message', true);
+  }
+
+  // ============================================
+  // 4. DISPLAY MESSAGE (only if viewing this group)
+  // ============================================
+  if (!window.groupState.isGroupChat || window.groupState.currentGroupId != groupId) {
+    console.log('⏭️ Not viewing this group, not displaying');
+    return;
+  }
+
+  if ($(`.messages [data-message-id="${messageData.id}"]`).length > 0) {
+    console.log('⏭️ Duplicate message');
+    return;
+  }
+
+  // Build message HTML
+  var displayName = messageData.sender ? messageData.sender.name : 'Unknown';
+  var timeDisplay = messageData.created_at ? new Date(messageData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  var msgHtml = '';
+  if (messageData.message) {
+    msgHtml += '<div class="message-text">' + messageData.message + '</div>';
+  }
+
+  if (messageData.attachment) {
+    var fileUrl = '/storage/' + messageData.attachment;
+    var isImage = messageData.attachment_type && messageData.attachment_type.startsWith('image/');
+
+    if (isImage) {
+      msgHtml += '<div class="chat-image" style="background-image:url(' + fileUrl + ');max-width:200px;max-height:200px;background-size:cover;background-position:center;border-radius:8px;margin-top:5px;cursor:pointer;"></div>';
+    } else {
+      var fileName = messageData.attachment.split('/').pop();
+      msgHtml += '<div class="file-attachment" style="padding:6px 10px;background:#f1f2f6;border-radius:6px;margin-top:4px;display:inline-block;"><i class="fas fa-paperclip"></i> <a href="' + fileUrl + '" target="_blank">' + fileName + '</a></div>';
     }
+  }
 
-    if (groupId != window.groupState.currentGroupId) {
-      console.log('⏭️ Different group');
-      return;
-    }
-
-    // Check if we're actually showing group messages
-    if (window.groupState.activeTab !== 'group') {
-      console.log('⏭️ Not in group tab');
-      return;
-    }
-
-    if ($(`.messages [data-message-id="${messageData.id}"]`).length > 0) {
-      console.log('⏭️ Duplicate message');
-      return;
-    }
-
-
-    // Display messeg 
-    let senderName = messageData.sender ? messageData.sender.name : 'Unknown';
-    let displayName = messageData.sender ? messageData.sender.name : 'Unknown';
-    let messageContent = '';
-    let messageTime = messageData.created_at ? new Date(messageData.created_at) : new Date();
-    let timeDisplay = messageTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    // Add text message
-    if (messageData.message) {
-      messageContent += '<div class="message-text">' + messageData.message + '</div>';
-    }
-
-    // Add attachment if exists
-    if (messageData.attachment) {
-      let fileUrl = '/storage/' + messageData.attachment;
-      let isImage = messageData.attachment_type && messageData.attachment_type.startsWith('image/');
-
-      if (isImage) {
-        messageContent += '<div class="chat-image" style="background-image: url(' + fileUrl + '); max-width:200px; max-height:200px; background-size:cover; background-position:center; border-radius:8px; margin-top:5px; cursor:pointer;"></div>';
-      } else {
-        let fileName = messageData.attachment.split('/').pop();
-        messageContent += '<div class="file-attachment" style="padding:6px 10px; background:#f1f2f6; border-radius:6px; margin-top:4px; display:inline-block;">';
-        messageContent += '<i class="fas fa-paperclip" style="font-size:12px;"></i> <a href="' + fileUrl + '" target="_blank" style="color:#0984e3; text-decoration:none; font-size:13px;">' + fileName + '</a>';
-        messageContent += '</div>';
-      }
-    }
-
-    // 🔥 Check if we need to add a date divider
-    let shouldAddDivider = false;
-    let lastMessageDate = window._lastMessageDate || null;
-    let currentDate = new Date().toDateString();
-
-    if (lastMessageDate !== currentDate) {
-      shouldAddDivider = true;
-      window._lastMessageDate = currentDate;
-    }
-
-    if (shouldAddDivider) {
-      let dateDisplay = 'Today';
-      let now = new Date();
-      let msgDate = new Date(messageData.created_at);
-
-      if (msgDate.toDateString() === now.toDateString()) {
-        dateDisplay = 'Today';
-      } else {
-        let yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        if (msgDate.toDateString() === yesterday.toDateString()) {
-          dateDisplay = 'Yesterday';
-        } else {
-          dateDisplay = msgDate.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
-        }
-      }
-
-      $('.messages').append(`
-        <div class="date-divider">
-            <span>${dateDisplay}</span>
+  $('.messages').find('.message-hint').hide();
+  $('.messages').append(`
+        <div class="message-card mc-receiver" data-message-id="${messageData.id}">
+            <div class="message">
+                <div class="message-user" style="font-size:11px;font-weight:600;color:#636e72;margin-bottom:2px;display:flex;justify-content:space-between;">
+                    <span>${displayName}</span>
+                    <span style="font-size:10px;font-weight:400;color:#b2bec3;">${timeDisplay}</span>
+                </div>
+                ${msgHtml}
+            </div>
         </div>
     `);
-    }
 
-    $('.messages').find('.message-hint').hide();
-    $('.messages').append(`
-    <div class="message-card mc-receiver" data-message-id="${messageData.id}">
-        <div class="message">
-            <div class="message-user" style="font-size:11px; font-weight:600; color:#636e72; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
-                <span>${displayName}</span>
-                <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">${timeDisplay}</span>
-            </div>
-            ${messageContent}
-        </div>
-    </div>
-`);
+  scrollToBottom(messagesContainer);
+  console.log('✅ Message displayed in chat');
+}
 
-    scrollToBottom(messagesContainer);
-    console.log('✅ Group message displayed!');
-  });
-
-  console.log('✅ Group handler ready!');
-});
+console.log('✅ Group handler ready!');
 // ============================================
 // GROUP CHAT - COMPLETE SYSTEM
 // ============================================
@@ -2014,148 +2212,148 @@ $(document).ready(function () {
   // ============================================
   // GROUP STATE - SINGLE SOURCE OF TRUTH
   // ============================================
-  window.groupState = {
-    isGroupChat: false,
-    currentGroupId: null,
-    activeTab: 'private'
-  };
+  // window.groupState = {
+  //   isGroupChat: false,
+  //   currentGroupId: null,
+  //   activeTab: 'private'
+  // };
 
-  let selectedMembers = [];
-  window.groupChannel = null;
+  // let selectedMembers = [];
+  // window.groupChannel = null;
 
-  // ============================================
-  // GROUP MESSAGE HANDLER
-  // ============================================
-  if (typeof pusher !== 'undefined') {
-    pusher.unbind('App\\Events\\GroupMessageSent');
+  // // ============================================
+  // // GROUP MESSAGE HANDLER
+  // // ============================================
+  // if (typeof pusher !== 'undefined') {
+  //   pusher.unbind('App\\Events\\GroupMessageSent');
 
-    pusher.bind('App\\Events\\GroupMessageSent', function (data) {
-      console.log('📨 Group message received!', data);
+  //   pusher.bind('App\\Events\\GroupMessageSent', function (data) {
+  //     console.log('📨 Group message received!', data);
 
-      const messageData = data.message || data;
-      const groupId = messageData.group_id;
-      const senderId = messageData.sender_id;
+  //     const messageData = data.message || data;
+  //     const groupId = messageData.group_id;
+  //     const senderId = messageData.sender_id;
 
-      // Skip own messages
-      if (senderId == auth_id) {
-        console.log('⏭️ Own message, skipping');
-        return;
-      }
+  //     // Skip own messages
+  //     if (senderId == auth_id) {
+  //       console.log('⏭️ Own message, skipping');
+  //       return;
+  //     }
 
-      // ============================================
-      // 1. UPDATE SIDEBAR - LIVE UNREAD INDICATOR
-      // ============================================
-      let groupItem = $(`.group-item[data-group-id="${groupId}"]`);
+  //     // ============================================
+  //     // 1. UPDATE SIDEBAR - LIVE UNREAD INDICATOR
+  //     // ============================================
+  //     let groupItem = $(`.group-item[data-group-id="${groupId}"]`);
 
-      if (groupItem.length) {
-        let isCurrentGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
+  //     if (groupItem.length) {
+  //       let isCurrentGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
 
-        let senderName = messageData.sender ? messageData.sender.name : 'Someone';
-        let lastMessageText = messageData.message || 'New message';
-        let previewText = senderName + ': ' + lastMessageText;
+  //       let senderName = messageData.sender ? messageData.sender.name : 'Someone';
+  //       let lastMessageText = messageData.message || 'New message';
+  //       let previewText = senderName + ': ' + lastMessageText;
 
-        if (previewText.length > 40) {
-          previewText = previewText.substring(0, 40) + '...';
-        }
+  //       if (previewText.length > 40) {
+  //         previewText = previewText.substring(0, 40) + '...';
+  //       }
 
-        groupItem.find('td:last-child span').text(previewText);
-        groupItem.find('.contact-item-time').text('Just now');
+  //       groupItem.find('td:last-child span').text(previewText);
+  //       groupItem.find('.contact-item-time').text('Just now');
 
-        if (!isCurrentGroup) {
-          let badge = groupItem.find('.contact-item-unread');
-          if (badge.length) {
-            let count = parseInt(badge.text()) + 1;
-            badge.text(count);
-          } else {
-            groupItem.find('.avatar').append(`<span class="contact-item-unread">1</span>`);
-          }
-          console.log('🔔 Unread count updated for group:', groupId);
-        }
+  //       if (!isCurrentGroup) {
+  //         let badge = groupItem.find('.contact-item-unread');
+  //         if (badge.length) {
+  //           let count = parseInt(badge.text()) + 1;
+  //           badge.text(count);
+  //         } else {
+  //           groupItem.find('.avatar').append(`<span class="contact-item-unread">1</span>`);
+  //         }
+  //         console.log('🔔 Unread count updated for group:', groupId);
+  //       }
 
-        let parent = groupItem.parent();
-        if (parent.length) {
-          parent.prepend(groupItem);
-        }
-      }
+  //       let parent = groupItem.parent();
+  //       if (parent.length) {
+  //         parent.prepend(groupItem);
+  //       }
+  //     }
 
-      // ============================================
-      // 2. SHOW BROWSER NOTIFICATIONS
-      // ============================================
-      let isViewingThisGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
-      let shouldNotify = document.hidden || !isViewingThisGroup;
+  //     // ============================================
+  //     // 2. SHOW BROWSER NOTIFICATIONS
+  //     // ============================================
+  //     let isViewingThisGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
+  //     let shouldNotify = document.hidden || !isViewingThisGroup;
 
-      if (shouldNotify && Notification.permission === "granted") {
-        let groupName = groupItem.length ?
-          groupItem.find('p[data-id]').text().trim() :
-          'Group Chat';
+  //     if (shouldNotify && Notification.permission === "granted") {
+  //       let groupName = groupItem.length ?
+  //         groupItem.find('p[data-id]').text().trim() :
+  //         'Group Chat';
 
-        let senderName = messageData.sender ? messageData.sender.name : 'Someone';
+  //       let senderName = messageData.sender ? messageData.sender.name : 'Someone';
 
-        let tempDiv = document.createElement("div");
-        tempDiv.innerHTML = messageData.message;
-        let messageText = (tempDiv.textContent || tempDiv.innerText || "").trim();
+  //       let tempDiv = document.createElement("div");
+  //       tempDiv.innerHTML = messageData.message;
+  //       let messageText = (tempDiv.textContent || tempDiv.innerText || "").trim();
 
-        if (messageText.length > 80) {
-          messageText = messageText.substring(0, 80) + "...";
-        }
+  //       if (messageText.length > 80) {
+  //         messageText = messageText.substring(0, 80) + "...";
+  //       }
 
-        const notification = new Notification(senderName + ' in ' + groupName, {
-          body: messageText || "Sent a message",
-          icon: "/favicon.ico",
-          tag: 'group-' + groupId,
-          requireInteraction: true
-        });
+  //       const notification = new Notification(senderName + ' in ' + groupName, {
+  //         body: messageText || "Sent a message",
+  //         icon: "/favicon.ico",
+  //         tag: 'group-' + groupId,
+  //         requireInteraction: true
+  //       });
 
-        notification.onclick = function () {
-          window.focus();
-          let groupElement = document.querySelector(`.group-item[data-group-id="${groupId}"]`);
-          if (groupElement) {
-            groupElement.click();
-          }
-          notification.close();
-        };
+  //       notification.onclick = function () {
+  //         window.focus();
+  //         let groupElement = document.querySelector(`.group-item[data-group-id="${groupId}"]`);
+  //         if (groupElement) {
+  //           groupElement.click();
+  //         }
+  //         notification.close();
+  //       };
 
-        console.log('🔔 Notification shown for group:', groupId);
-      }
+  //       console.log('🔔 Notification shown for group:', groupId);
+  //     }
 
-      // ============================================
-      // 3. PLAY SOUND
-      // ============================================
-      if (typeof playNotificationSound === 'function') {
-        playNotificationSound("new_message", true);
-      }
+  //     // ============================================
+  //     // 3. PLAY SOUND
+  //     // ============================================
+  //     if (typeof playNotificationSound === 'function') {
+  //       playNotificationSound("new_message", true);
+  //     }
 
-      // ============================================
-      // 4. DISPLAY MESSAGE (only if viewing this group)
-      // ============================================
-      if (!window.groupState.isGroupChat || !window.groupState.currentGroupId) {
-        return;
-      }
+  //     // ============================================
+  //     // 4. DISPLAY MESSAGE (only if viewing this group)
+  //     // ============================================
+  //     if (!window.groupState.isGroupChat || !window.groupState.currentGroupId) {
+  //       return;
+  //     }
 
-      if (groupId != window.groupState.currentGroupId) {
-        return;
-      }
+  //     if (groupId != window.groupState.currentGroupId) {
+  //       return;
+  //     }
 
-      if ($(`.messages [data-message-id="${messageData.id}"]`).length > 0) {
-        return;
-      }
+  //     if ($(`.messages [data-message-id="${messageData.id}"]`).length > 0) {
+  //       return;
+  //     }
 
-      let displayName = messageData.sender ? messageData.sender.name : 'Unknown';
-      $('.messages').find('.message-hint').hide();
-      $('.messages').append(`
-                <div class="message-card mc-receiver" data-message-id="${messageData.id}">
-                    <div class="message">
-                        <div class="message-user">${displayName}</div>
-                        <div class="message-text">${messageData.message}</div>
-                    </div>
-                </div>
-            `);
+  //     let displayName = messageData.sender ? messageData.sender.name : 'Unknown';
+  //     $('.messages').find('.message-hint').hide();
+  //     $('.messages').append(`
+  //               <div class="message-card mc-receiver" data-message-id="${messageData.id}">
+  //                   <div class="message">
+  //                       <div class="message-user">${displayName}</div>
+  //                       <div class="message-text">${messageData.message}</div>
+  //                   </div>
+  //               </div>
+  //           `);
 
-      scrollToBottom(messagesContainer);
-    });
+  //     scrollToBottom(messagesContainer);
+  //   });
 
-    console.log('✅ Group message handler bound successfully!');
-  }
+  //   console.log('✅ Group message handler bound successfully!');
+  // }
 
   // ============================================
   // PREVENT PRIVATE CHAT MESSAGES FROM LOADING IN GROUPS
@@ -2335,6 +2533,22 @@ $(document).ready(function () {
       contentType: false,
       success: function () {
         loadGroups();
+        // 🔥 SUBSCRIBE TO THE NEW GROUP CHANNEL
+        let groupId = response.group_id;
+        if (groupId) {
+          console.log('📡 Subscribing to new group.' + groupId);
+          let channel = pusher.subscribe('group.' + groupId);
+          channel.bind('App\\Events\\GroupMessageSent', function (data) {
+            console.log('📨 Message on new group.' + groupId, data);
+            if (typeof handleGroupMessage === 'function') {
+              handleGroupMessage(data);
+            }
+          });
+          if (typeof window.groupChannels === 'undefined') {
+            window.groupChannels = {};
+          }
+          window.groupChannels[groupId] = channel;
+        }
         selectedMembers = [];
         $('#group_name').val('');
         $('#group_image').val('');
@@ -2345,7 +2559,7 @@ $(document).ready(function () {
   });
 
   // ============================================
-  // LOAD GROUPS
+  // LOAD GROUPS - WITH CHANNEL SUBSCRIPTION
   // ============================================
   function loadGroups() {
     $.get('/groups/list', function (groups) {
@@ -2359,7 +2573,32 @@ $(document).ready(function () {
         return;
       }
 
-      groups.forEach(group => {
+      // 🔥 SUBSCRIBE TO ALL GROUP CHANNELS
+      groups.forEach(function (group) {
+        let groupId = group.id;
+        console.log('📡 Subscribing to group.' + groupId);
+
+        // Subscribe to the group channel
+        let channel = pusher.subscribe('group.' + groupId);
+
+        // 🔥 BIND THE EVENT DIRECTLY TO THIS CHANNEL
+        channel.bind('App\\Events\\GroupMessageSent', function (data) {
+          console.log('📨 Message on group.' + groupId, data);
+          // Call the existing handler
+          if (typeof handleGroupMessage === 'function') {
+            handleGroupMessage(data);
+          }
+        });
+
+        // Store channel reference
+        if (typeof window.groupChannels === 'undefined') {
+          window.groupChannels = {};
+        }
+        window.groupChannels[groupId] = channel;
+      });
+
+      // Build HTML
+      groups.forEach(function (group) {
         let image = group.image ? '/storage/' + group.image : '/images/group-default.png';
         let lastMessage = group.last_message || 'No messages yet';
         let unreadCount = group.unread_count || 0;
@@ -2382,25 +2621,25 @@ $(document).ready(function () {
         }
 
         html += `
-                    <div class="messenger-list-item group-item" data-contact="${group.id}" data-group-id="${group.id}">
-                        <table width="100%">
-                            <tr>
-                                <td style="position: relative; width: 60px;">
-                                    <div class="avatar av-m" style="background-image: url('${image}');">
-                                        ${unreadCount > 0 ? `<span class="contact-item-unread">${unreadCount}</span>` : ''}
-                                    </div>
-                                </td>
-                                <td>
-                                    <p data-id="${group.id}" data-type="group">
-                                        ${group.name}
-                                        <span class="contact-item-time">${timeDisplay}</span>
-                                    </p>
-                                    <span>${lastMessage}</span>
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-                `;
+                <div class="messenger-list-item group-item" data-contact="${group.id}" data-group-id="${group.id}">
+                    <table width="100%">
+                        <tr>
+                            <td style="position: relative; width: 60px;">
+                                <div class="avatar av-m" style="background-image: url('${image}');">
+                                    ${unreadCount > 0 ? `<span class="contact-item-unread">${unreadCount}</span>` : ''}
+                                </div>
+                            </td>
+                            <td>
+                                <p data-id="${group.id}" data-type="group">
+                                    ${group.name}
+                                    <span class="contact-item-time">${timeDisplay}</span>
+                                </p>
+                                <span>${lastMessage}</span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            `;
       });
 
       $('.listOfGroups').html(html);
@@ -2495,10 +2734,10 @@ $(document).ready(function () {
       }
 
       console.log('📨 Messages rendered:', $('.messages .message-card').length);
-      // 🔥 ADD THIS - Load reactions for group messages
-      setTimeout(function () {
-        loadAllMessageReactions('.messages', 'group');
-      }, 500);
+      // // 🔥 ADD THIS - Load reactions for group messages
+      // setTimeout(function () {
+      //   loadAllMessageReactions('.messages', 'group');
+      // }, 500);
 
       setTimeout(function () {
         scrollToBottom(messagesContainer);
@@ -2599,6 +2838,13 @@ $(document).ready(function () {
       $(".attachment-preview").remove();
       scrollToBottom(messagesContainer);
     }
+
+    // In your sendGroupMessage function
+    console.log('📤 AJAX sending to:', '/groups/send-message');
+    console.log('📤 Data:', {
+      group_id: currentGroupId,
+      message: text
+    });
 
     $.ajax({
       url: '/groups/send-message',
@@ -3205,285 +3451,458 @@ console.log('🔧 Initializing message reactions...');
 // SHOW REACTION PICKER ON CLICK
 // ============================================
 $(document).on('click', '.message-card', function (e) {
-    // Don't show on user name, time, or existing reactions
-    if ($(e.target).closest('.message-user, .message-time, .message-reactions, .reaction-badge, .actions, .delete-btn').length) {
-        return;
-    }
+  // Don't show on user name, time, or existing reactions
+  if ($(e.target).closest('.message-user, .message-time, .message-reactions, .reaction-badge, .actions, .delete-btn').length) {
+    return;
+  }
 
-    // Don't show on your own messages
-    let isOwnMessage = $(this).hasClass('mc-sender');
-    if (isOwnMessage) {
-        return;
-    }
+  // Don't show on your own messages
+  let isOwnMessage = $(this).hasClass('mc-sender');
+  if (isOwnMessage) {
+    return;
+  }
 
-    let messageId = $(this).data('id') || $(this).data('message-id');
-    
-    // Better group detection
-    let isGroup = false;
-    if ($(this).closest('.group-chat-messages').length > 0) {
-        isGroup = true;
-    } else if (window.isGroupChat === true) {
-        isGroup = true;
-    } else if (window.groupState && window.groupState.isGroupChat === true) {
-        isGroup = true;
-    } else if ($(this).data('type') === 'group') {
-        isGroup = true;
-    }
+  let messageId = $(this).data('id') || $(this).data('message-id');
 
-    if (!messageId) {
-        console.warn('⚠️ No message ID found');
-        return;
-    }
+  // Better group detection
+  let isGroup = false;
+  if ($(this).closest('.group-chat-messages').length > 0) {
+    isGroup = true;
+  } else if (window.isGroupChat === true) {
+    isGroup = true;
+  } else if (window.groupState && window.groupState.isGroupChat === true) {
+    isGroup = true;
+  } else if ($(this).data('type') === 'group') {
+    isGroup = true;
+  }
 
-    // If clicking the same message, toggle picker off
-    if (currentReactionMessageId === messageId && $('#reaction-picker').is(':visible')) {
-        $('#reaction-picker').fadeOut(150);
-        pickerVisible = false;
-        currentReactionMessageId = null;
-        return;
-    }
+  if (!messageId) {
+    console.warn('⚠️ No message ID found');
+    return;
+  }
 
-    showReactionPicker(this, messageId, isGroup);
+  // If clicking the same message, toggle picker off
+  if (currentReactionMessageId === messageId && $('#reaction-picker').is(':visible')) {
+    $('#reaction-picker').fadeOut(150);
+    pickerVisible = false;
+    currentReactionMessageId = null;
+    return;
+  }
+
+  showReactionPicker(this, messageId, isGroup);
 });
 
 // ============================================
 // SHOW REACTION PICKER - BELOW MESSAGE
 // ============================================
 function showReactionPicker(element, messageId, isGroup) {
-    let rect = element.getBoundingClientRect();
-    let picker = $('#reaction-picker');
+  let rect = element.getBoundingClientRect();
+  let picker = $('#reaction-picker');
 
-    // Position BELOW the message
-    let top = rect.bottom + 6;
-    let left = rect.left;
+  // Position BELOW the message
+  let top = rect.bottom + 6;
+  let left = rect.left;
 
-    // If not enough space below, show above
-    if (top + 50 > window.innerHeight) {
-        top = rect.top - 50;
+  // If not enough space below, show above
+  if (top + 50 > window.innerHeight) {
+    top = rect.top - 50;
+  }
+
+  // Make sure it's in viewport horizontally
+  if (left + 200 > window.innerWidth) {
+    left = window.innerWidth - 210;
+  }
+  if (left < 5) left = 5;
+
+  picker.css({
+    top: top + 'px',
+    left: left + 'px',
+    position: 'fixed',
+    zIndex: 999999
+  }).fadeIn(150);
+
+  pickerVisible = true;
+  currentReactionMessageId = messageId;
+  currentReactionMessageType = isGroup ? 'group' : 'private';
+
+  console.log('📌 Picker shown:', { messageId, isGroup });
+
+  // Hide picker after 3 seconds if no interaction
+  clearTimeout(window.reactionPickerTimeout);
+  window.reactionPickerTimeout = setTimeout(function () {
+    if (!$('#reaction-picker').is(':hover')) {
+      $('#reaction-picker').fadeOut(150);
+      pickerVisible = false;
+      currentReactionMessageId = null;
     }
-
-    // Make sure it's in viewport horizontally
-    if (left + 200 > window.innerWidth) {
-        left = window.innerWidth - 210;
-    }
-    if (left < 5) left = 5;
-
-    picker.css({
-        top: top + 'px',
-        left: left + 'px',
-        position: 'fixed',
-        zIndex: 999999
-    }).fadeIn(150);
-
-    pickerVisible = true;
-    currentReactionMessageId = messageId;
-    currentReactionMessageType = isGroup ? 'group' : 'private';
-
-    console.log('📌 Picker shown:', { messageId, isGroup });
-
-    // Hide picker after 3 seconds if no interaction
-    clearTimeout(window.reactionPickerTimeout);
-    window.reactionPickerTimeout = setTimeout(function () {
-        if (!$('#reaction-picker').is(':hover')) {
-            $('#reaction-picker').fadeOut(150);
-            pickerVisible = false;
-            currentReactionMessageId = null;
-        }
-    }, 3000);
+  }, 3000);
 }
 
 // ============================================
 // KEEP PICKER VISIBLE WHEN HOVERING OVER IT
 // ============================================
 $(document).on('mouseenter', '#reaction-picker', function () {
-    clearTimeout(window.reactionPickerTimeout);
-    pickerVisible = true;
+  clearTimeout(window.reactionPickerTimeout);
+  pickerVisible = true;
 });
 
 $(document).on('mouseleave', '#reaction-picker', function () {
-    $('#reaction-picker').fadeOut(150);
-    pickerVisible = false;
-    currentReactionMessageId = null;
+  $('#reaction-picker').fadeOut(150);
+  pickerVisible = false;
+  currentReactionMessageId = null;
 });
 
 // ============================================
 // HIDE PICKER WHEN CLICKING ELSEWHERE
 // ============================================
 $(document).on('click', function (e) {
-    if (!$(e.target).closest('#reaction-picker').length && !$(e.target).closest('.message-card').length) {
-        $('#reaction-picker').fadeOut(150);
-        pickerVisible = false;
-        currentReactionMessageId = null;
-    }
+  if (!$(e.target).closest('#reaction-picker').length && !$(e.target).closest('.message-card').length) {
+    $('#reaction-picker').fadeOut(150);
+    pickerVisible = false;
+    currentReactionMessageId = null;
+  }
 });
 
 // ============================================
 // REACTION BUTTON CLICK
 // ============================================
 $(document).on('click', '.reaction-btn', function () {
-    let reaction = $(this).data('reaction');
+  let reaction = $(this).data('reaction');
 
-    if (!currentReactionMessageId) {
-        console.warn('⚠️ No message selected');
-        return;
+  if (!currentReactionMessageId) {
+    console.warn('⚠️ No message selected');
+    return;
+  }
+
+  let url = currentReactionMessageType === 'group'
+    ? '/reactions/toggle-group'
+    : '/reactions/toggle-private';
+
+  $.ajax({
+    url: url,
+    type: 'POST',
+    data: {
+      _token: csrfToken,
+      message_id: currentReactionMessageId,
+      reaction: reaction
+    },
+    success: function (response) {
+      if (response.success) {
+        updateReactionsDisplay(currentReactionMessageId, response.reactions);
+        $('#reaction-picker').fadeOut(150);
+        pickerVisible = false;
+        currentReactionMessageId = null;
+        console.log('✅ Reaction added:', reaction);
+      }
+    },
+    error: function (xhr) {
+      console.error('Failed to add reaction:', xhr);
+      let errorMsg = xhr.responseJSON?.message || xhr.responseJSON?.error || 'Failed to add reaction';
+      alert('❌ ' + errorMsg);
     }
-
-    let url = currentReactionMessageType === 'group'
-        ? '/reactions/toggle-group'
-        : '/reactions/toggle-private';
-
-    $.ajax({
-        url: url,
-        type: 'POST',
-        data: {
-            _token: csrfToken,
-            message_id: currentReactionMessageId,
-            reaction: reaction
-        },
-        success: function (response) {
-            if (response.success) {
-                updateReactionsDisplay(currentReactionMessageId, response.reactions);
-                $('#reaction-picker').fadeOut(150);
-                pickerVisible = false;
-                currentReactionMessageId = null;
-                console.log('✅ Reaction added:', reaction);
-            }
-        },
-        error: function (xhr) {
-            console.error('Failed to add reaction:', xhr);
-            let errorMsg = xhr.responseJSON?.message || xhr.responseJSON?.error || 'Failed to add reaction';
-            alert('❌ ' + errorMsg);
-        }
-    });
+  });
 });
 
 // ============================================
-// UPDATE REACTIONS DISPLAY
+// UPDATE REACTIONS DISPLAY - FIXED WITH USER NAMES
 // ============================================
 function updateReactionsDisplay(messageId, reactions) {
-    let messageCard = $(`.message-card[data-id="${messageId}"], .message-card[data-message-id="${messageId}"]`);
+  console.log('🔄 Updating reactions for message:', messageId);
+  console.log('📊 Reactions data:', reactions);
 
-    if (!messageCard.length) {
-        console.warn('⚠️ Message card not found:', messageId);
-        return;
+  let messageCard = $(`.message-card[data-id="${messageId}"], .message-card[data-message-id="${messageId}"]`);
+
+  if (!messageCard.length) {
+    console.warn('⚠️ Message card not found:', messageId);
+    return;
+  }
+
+  // Remove existing reactions container
+  messageCard.find('.message-reactions').remove();
+
+  if (!reactions || reactions.length === 0) {
+    console.log('ℹ️ No reactions to display');
+    return;
+  }
+
+  // Group reactions by emoji
+  let grouped = {};
+  reactions.forEach(function (r) {
+    console.log('🔍 Individual reaction:', r);
+    console.log('🔍 User data:', r.user);
+
+    if (!grouped[r.reaction]) {
+      grouped[r.reaction] = {
+        users: [],
+        count: 0
+      };
     }
 
-    messageCard.find('.message-reactions').remove();
+    // 🔥 FIX: Get user name from different possible sources
+    let userName = 'Unknown';
+    if (r.user) {
+      userName = r.user.name || 'Unknown';
+    } else if (r.user_name) {
+      userName = r.user_name;
+    } else if (r.name) {
+      userName = r.name;
+    }
 
-    if (!reactions || reactions.length === 0) return;
-
-    let grouped = {};
-    reactions.forEach(r => {
-        if (!grouped[r.reaction]) grouped[r.reaction] = [];
-        grouped[r.reaction].push(r.user_id);
+    grouped[r.reaction].users.push({
+      id: r.user_id,
+      name: userName
     });
+    grouped[r.reaction].count++;
+  });
 
-    let html = '<div class="message-reactions" style="display:flex; gap:3px; margin-top:4px; flex-wrap:wrap;">';
-    for (let [emoji, users] of Object.entries(grouped)) {
-        let count = users.length;
-        let hasUserReacted = users.includes(parseInt(auth_id));
-        html += `
+  let html = '<div class="message-reactions" style="display:flex; gap:3px; margin-top:4px; flex-wrap:wrap;">';
+
+  for (let emoji in grouped) {
+    let reactionData = grouped[emoji];
+    let count = reactionData.count;
+    let users = reactionData.users;
+    let hasUserReacted = users.some(function (u) { return u.id == auth_id; });
+    let userNames = users.map(function (u) { return u.name; }).join(', ');
+
+    console.log(`✅ Emoji: ${emoji}, Users: ${userNames}, Count: ${count}`);
+
+    html += `
             <span class="reaction-badge ${hasUserReacted ? 'active' : ''}" 
                   data-message-id="${messageId}" 
                   data-reaction="${emoji}"
-                  style="display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:${hasUserReacted ? '#e8f5e9' : '#f1f2f6'}; border-radius:12px; font-size:13px; cursor:pointer; border:${hasUserReacted ? '1px solid #4caf50' : '1px solid transparent'}; transition:all 0.2s;">
+                  data-users="${userNames}"
+                  data-user-count="${count}"
+                  style="display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:${hasUserReacted ? '#e8f5e9' : '#f1f2f6'}; border-radius:12px; font-size:13px; cursor:pointer; border:${hasUserReacted ? '1px solid #4caf50' : '1px solid transparent'}; transition:all 0.2s; position:relative;">
                 ${emoji} ${count}
             </span>
         `;
-    }
-    html += '</div>';
+  }
+  html += '</div>';
 
-    messageCard.find('.message').append(html);
+  messageCard.find('.message').append(html);
+  console.log('✅ Reactions updated for message:', messageId);
 }
 
 // ============================================
 // CLICK ON REACTION BADGE TO TOGGLE
 // ============================================
 $(document).on('click', '.reaction-badge', function (e) {
-    e.stopPropagation();
-    let messageId = $(this).data('message-id');
-    let reaction = $(this).data('reaction');
-    let isGroup = $(this).closest('.group-chat-messages').length > 0 || window.isGroupChat;
+  e.stopPropagation();
+  let messageId = $(this).data('message-id');
+  let reaction = $(this).data('reaction');
+  let isGroup = $(this).closest('.group-chat-messages').length > 0 || window.isGroupChat;
 
-    let url = isGroup ? '/reactions/toggle-group' : '/reactions/toggle-private';
+  let url = isGroup ? '/reactions/toggle-group' : '/reactions/toggle-private';
 
-    $.ajax({
-        url: url,
-        type: 'POST',
-        data: {
-            _token: csrfToken,
-            message_id: messageId,
-            reaction: reaction
-        },
-        success: function (response) {
-            if (response.success) {
-                updateReactionsDisplay(messageId, response.reactions);
-            }
-        },
-        error: function (xhr) {
-            console.error('Failed to toggle reaction:', xhr);
-        }
-    });
+  $.ajax({
+    url: url,
+    type: 'POST',
+    data: {
+      _token: csrfToken,
+      message_id: messageId,
+      reaction: reaction
+    },
+    success: function (response) {
+      if (response.success) {
+        updateReactionsDisplay(messageId, response.reactions);
+      }
+    },
+    error: function (xhr) {
+      console.error('Failed to toggle reaction:', xhr);
+    }
+  });
 });
 
 // ============================================
 // LOAD EXISTING REACTIONS FOR MESSAGES
 // ============================================
 function loadMessageReactions(messageId, type) {
-    $.ajax({
-        url: '/reactions/get',
-        type: 'POST',
-        data: {
-            _token: csrfToken,
-            message_id: messageId,
-            type: type
-        },
-        success: function (response) {
-            if (response.success && response.reactions.length > 0) {
-                updateReactionsDisplay(messageId, response.reactions);
-            }
-        },
-        error: function (xhr) {
-            console.error('Failed to load reactions:', xhr);
-        }
-    });
+  $.ajax({
+    url: '/reactions/get',
+    type: 'POST',
+    data: {
+      _token: csrfToken,
+      message_id: messageId,
+      type: type
+    },
+    success: function (response) {
+      if (response.success && response.reactions.length > 0) {
+        updateReactionsDisplay(messageId, response.reactions);
+      }
+    },
+    error: function (xhr) {
+      console.error('Failed to load reactions:', xhr);
+    }
+  });
 }
 
 // ============================================
 // LOAD REACTIONS FOR ALL MESSAGES
 // ============================================
 function loadAllMessageReactions(container, type) {
-    $(container).find('.message-card').each(function () {
-        let messageId = $(this).data('id') || $(this).data('message-id');
-        if (messageId) {
-            loadMessageReactions(messageId, type);
-        }
-    });
+  $(container).find('.message-card').each(function () {
+    let messageId = $(this).data('id') || $(this).data('message-id');
+    if (messageId) {
+      loadMessageReactions(messageId, type);
+    }
+  });
 }
 
 // ============================================
 // PUSHER - PRIVATE MESSAGE REACTIONS
 // ============================================
 if (typeof pusher !== 'undefined') {
-    pusher.bind('App\\Events\\MessageReactionEvent', function (data) {
-        if (data.type === 'private') {
-            updateReactionsDisplay(data.message_id, data.reactions);
-            console.log('✅ Private reaction received:', data);
-        }
-    });
+  pusher.bind('App\\Events\\MessageReactionEvent', function (data) {
+    if (data.type === 'private') {
+      updateReactionsDisplay(data.message_id, data.reactions);
+      console.log('✅ Private reaction received:', data);
+    }
+  });
 }
 
 // ============================================
 // PUSHER - GROUP MESSAGE REACTIONS
 // ============================================
 function bindGroupReactions(channel) {
-    if (!channel) return;
-    channel.bind('App\\Events\\MessageReactionEvent', function (data) {
-        if (data.type === 'group') {
-            updateReactionsDisplay(data.message_id, data.reactions);
-            console.log('✅ Group reaction received:', data);
-        }
-    });
+  if (!channel) return;
+  channel.bind('App\\Events\\MessageReactionEvent', function (data) {
+    if (data.type === 'group') {
+      updateReactionsDisplay(data.message_id, data.reactions);
+      console.log('✅ Group reaction received:', data);
+    }
+  });
 }
 
 console.log('✅ Message reactions initialized!');
+
+
+
+// ============================================
+// PASTE SCREENSHOT INTO INPUT FIELD
+// ============================================
+
+$(document).on('paste', function (e) {
+  // Only handle paste if we're focused on the message input
+  if (!messageInput.is(':focus')) {
+    return;
+  }
+
+  var clipboardData = e.originalEvent.clipboardData || window.clipboardData;
+  if (!clipboardData) return;
+
+  var items = clipboardData.items;
+  if (!items) return;
+
+  // Check if there's an image in the clipboard
+  var imageFile = null;
+  var hasImage = false;
+
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') !== -1) {
+      hasImage = true;
+      imageFile = items[i].getAsFile();
+      break;
+    }
+  }
+
+  // If no image found, return
+  if (!hasImage || !imageFile) return;
+
+  // Prevent default paste behavior
+  e.preventDefault();
+
+  // 🔥 Create a File object and attach it to the file input
+  var fileInput = $('.upload-attachment')[0];
+  if (!fileInput) return;
+
+  // Create a new FileList containing the pasted image
+  var dataTransfer = new DataTransfer();
+  dataTransfer.items.add(imageFile);
+  fileInput.files = dataTransfer.files;
+
+  // 🔥 Trigger change event to show preview
+  $(fileInput).trigger('change');
+
+  console.log('📸 Screenshot pasted into input field!');
+});
+
+
+// ============================================
+// REACTION TOOLTIP - SHOW USERS WHO REACTED
+// ============================================
+
+let tooltipTimeout;
+
+// Show tooltip on hover
+$(document).on('mouseenter', '.reaction-badge', function (e) {
+  clearTimeout(tooltipTimeout);
+
+  let emoji = $(this).data('reaction');
+  let count = $(this).data('user-count') || 0;
+  let users = $(this).data('users') || '';
+
+  // Get position
+  let rect = this.getBoundingClientRect();
+  let tooltip = $('#reaction-tooltip');
+
+  // Update tooltip content
+  $('#reaction-tooltip-emoji').text(emoji);
+  $('#reaction-tooltip-count').text(count + ' person' + (count > 1 ? 's' : ''));
+
+  // Format user names
+  let userList = users.split(', ');
+  let userHtml = '';
+  if (userList.length > 0) {
+    userHtml = '<div style="display:flex; flex-direction:column; gap:2px;">';
+    userList.forEach(function (name) {
+      userHtml += '<span style="padding:2px 4px; border-radius:4px;">' + name + '</span>';
+    });
+    userHtml += '</div>';
+  }
+  $('#reaction-tooltip-users').html(userHtml);
+
+  // Position tooltip
+  let top = rect.top - 10;
+  let left = rect.left + (rect.width / 2);
+
+  // Check if tooltip fits above
+  if (top - 100 < 0) {
+    top = rect.bottom + 10;
+  }
+
+  // Center the tooltip horizontally
+  left = left - (tooltip.outerWidth() / 2);
+
+  // Make sure it's in viewport
+  if (left < 10) left = 10;
+  if (left + tooltip.outerWidth() > window.innerWidth - 10) {
+    left = window.innerWidth - tooltip.outerWidth() - 10;
+  }
+
+  tooltip.css({
+    top: top + 'px',
+    left: left + 'px'
+  }).fadeIn(200);
+});
+
+// Hide tooltip on mouse leave
+$(document).on('mouseleave', '.reaction-badge', function () {
+  clearTimeout(tooltipTimeout);
+  tooltipTimeout = setTimeout(function () {
+    $('#reaction-tooltip').fadeOut(200);
+  }, 300);
+});
+
+// Keep tooltip visible when hovering over it
+$(document).on('mouseenter', '#reaction-tooltip', function () {
+  clearTimeout(tooltipTimeout);
+});
+
+$(document).on('mouseleave', '#reaction-tooltip', function () {
+  $('#reaction-tooltip').fadeOut(200);
+});
+
+// Hide tooltip when clicking anywhere
+$(document).on('click', function () {
+  $('#reaction-tooltip').fadeOut(200);
+});

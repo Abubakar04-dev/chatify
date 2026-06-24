@@ -10,6 +10,7 @@ use App\Models\ChatGroupRead;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class GroupController extends Controller
@@ -131,49 +132,7 @@ class GroupController extends Controller
         ]);
     }
 
-    // public function messages(ChatGroup $group)
-    // {
-    //     // Verify user is a member
-    //     if (!$group->members()->where('user_id', auth()->id())->exists()) {
-    //         return response()->json(['error' => 'Unauthorized'], 403);
-    //     }
 
-    //     $messages = ChatGroupMessage::where('group_id', $group->id)
-    //         ->with('sender')
-    //         ->orderBy('id', 'asc')
-    //         ->get();
-
-    //     $html = '';
-
-    //     if ($messages->isEmpty()) {
-    //         $html = '<div class="message-hint" style="text-align:center;padding:40px;color:#999;">No messages yet. Say hi!</div>';
-    //     } else {
-    //         foreach ($messages as $msg) {
-    //             $isMe = $msg->sender_id == auth()->id();
-    //             $html .= '
-    //         <div class="message-card ' . ($isMe ? 'mc-sender' : 'mc-receiver') . '" data-message-id="' . $msg->id . '">
-    //             <div class="message">
-    //                 <div class="message-user">
-    //                     ' . ($isMe ? 'You' : e($msg->sender->name)) . '
-    //                 </div>
-    //                 <div class="message-text">
-    //                     ' . e($msg->message) . '
-    //                 </div>
-    //             </div>
-    //         </div>
-    //         ';
-    //         }
-    //     }
-
-    //     return response()->json([
-    //         'group' => [
-    //             'id' => $group->id,
-    //             'name' => $group->name,
-    //             'image' => $group->image,
-    //         ],
-    //         'messages_html' => $html
-    //     ]);
-    // }
 
     public function messages(ChatGroup $group)
     {
@@ -182,17 +141,25 @@ class GroupController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
+        // 🔥 LOAD MESSAGES WITH REACTIONS IN ONE QUERY
+        // $messages = ChatGroupMessage::where('group_id', $group->id)
+        //     ->with('sender')
+        //     ->with(['reactions' => function ($q) {
+        //         $q->with('user'); // Load user data for reactions
+        //     }])
+        //     ->orderBy('id', 'asc')
+        //     ->get();
+
+        // 🔥 FIX: Load messages with reactions using proper relationship
         $messages = ChatGroupMessage::where('group_id', $group->id)
             ->with('sender')
+            ->with(['reactions' => function ($q) {
+                $q->with(['user' => function ($query) {
+                    $query->select('id', 'name', 'avatar');
+                }]);
+            }])
             ->orderBy('id', 'asc')
             ->get();
-
-        // 🔥 DEBUG: Check if attachments are being loaded
-        \Log::info('Messages loaded:', [
-            'count' => $messages->count(),
-            'first_message_attachment' => $messages->first()?->attachment,
-            'first_message_attachment_type' => $messages->first()?->attachment_type
-        ]);
 
         $html = '';
         $lastDate = null;
@@ -223,7 +190,7 @@ class GroupController extends Controller
                     $messageContent .= '<div class="message-text">' . e($msg->message) . '</div>';
                 }
 
-                // 🔥 Add attachment if exists
+                // Add attachment
                 if ($msg->attachment) {
                     $fileUrl = asset('storage/' . $msg->attachment);
                     $isImage = str_starts_with($msg->attachment_type ?? '', 'image/');
@@ -241,6 +208,9 @@ class GroupController extends Controller
                 // Add time to message
                 $timeDisplay = $msg->created_at->format('h:i A');
 
+                // 🔥 BUILD REACTIONS HTML DIRECTLY IN THE MESSAGE
+                $reactionsHtml = $this->buildReactionsHtml($msg->reactions);
+
                 $html .= '
             <div class="message-card ' . ($isMe ? 'mc-sender' : 'mc-receiver') . '" data-message-id="' . $msg->id . '">
                 <div class="message">
@@ -249,6 +219,7 @@ class GroupController extends Controller
                         <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">' . $timeDisplay . '</span>
                     </div>
                     ' . $messageContent . '
+                    ' . $reactionsHtml . '
                 </div>
             </div>
             ';
@@ -263,6 +234,40 @@ class GroupController extends Controller
             ],
             'messages_html' => $html
         ]);
+    }
+
+    // 🔥 HELPER FUNCTION: Build reactions HTML
+    private function buildReactionsHtml($reactions)
+    {
+        if (!$reactions || $reactions->isEmpty()) {
+            return '';
+        }
+
+        // Group reactions by emoji
+        $grouped = [];
+        foreach ($reactions as $reaction) {
+            if (!isset($grouped[$reaction->reaction])) {
+                $grouped[$reaction->reaction] = [];
+            }
+            $grouped[$reaction->reaction][] = $reaction->user_id;
+        }
+
+        $html = '<div class="message-reactions" style="display:flex; gap:3px; margin-top:4px; flex-wrap:wrap;">';
+        foreach ($grouped as $emoji => $users) {
+            $count = count($users);
+            $hasUserReacted = in_array(auth()->id(), $users);
+            $html .= '
+            <span class="reaction-badge ' . ($hasUserReacted ? 'active' : '') . '" 
+                  data-message-id="' . $reactions->first()->message_id . '" 
+                  data-reaction="' . $emoji . '"
+                  style="display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:' . ($hasUserReacted ? '#e8f5e9' : '#f1f2f6') . '; border-radius:12px; font-size:13px; cursor:pointer; border:' . ($hasUserReacted ? '1px solid #4caf50' : '1px solid transparent') . '; transition:all 0.2s;">
+                ' . $emoji . ' ' . $count . '
+            </span>
+        ';
+        }
+        $html .= '</div>';
+
+        return $html;
     }
 
     // Helper function for date display
@@ -317,6 +322,7 @@ class GroupController extends Controller
         ]);
 
         $message->load('sender');
+
         broadcast(new GroupMessageSent($message))->toOthers();
 
         return response()->json([
