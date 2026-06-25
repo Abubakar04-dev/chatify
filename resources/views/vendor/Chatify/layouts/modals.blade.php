@@ -37,7 +37,7 @@
                 @csrf
                 {{-- <div class="app-modal-header">Update your profile settings</div> --}}
                 <div class="app-modal-body">
-                    {{-- Udate profile avatar --}}
+                    {{-- Update profile avatar --}}
                     <div class="avatar av-l upload-avatar-preview chatify-d-flex"
                         style="background-image: url('{{ Chatify::getUserWithAvatar(Auth::user())->avatar }}');"></div>
                     <p class="upload-avatar-details"></p>
@@ -45,6 +45,14 @@
                         Upload New
                         <input class="upload-avatar chatify-d-none" accept="image/*" name="avatar" type="file" />
                     </label>
+                    
+                    {{-- Profile Settings Link --}}
+                    <div style="text-align: center; margin-top: 10px;">
+                        <a href="{{ route('profile.edit') }}" style="color: {{$messengerColor}}; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-user-cog"></i> Profile Settings
+                        </a>
+                    </div>
+                    
                     {{-- Dark/Light Mode  --}}
                     <p class="divider"></p>
                     <p class="app-modal-header">Dark Mode <span class="

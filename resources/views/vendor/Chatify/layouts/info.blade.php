@@ -14,9 +14,9 @@
     PRIVATE CHAT INFO (Default)
 ============================================ --}}
 <div id="private-chat-info">
-    <div class="avatar av-l chatify-d-flex"></div>
-    <p class="info-name">{{ config('chatify.name') }}</p>
-    <div class="messenger-infoView-btns">
+    <div class="avatar av-l chatify-d-flex" style="margin: 0 auto;"></div>
+    <p class="info-name" style="text-align: center;">{{ config('chatify.name') }}</p>
+    <div class="messenger-infoView-btns" style="text-align: center;">
         <a href="#" class="danger delete-conversation">Delete Conversation</a>
     </div>
     <div class="messenger-infoView-shared">
@@ -24,7 +24,6 @@
         <div class="shared-photos-list"></div>
     </div>
 </div>
-
 {{-- ============================================
     GROUP CHAT INFO
 ============================================ --}}

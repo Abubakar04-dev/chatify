@@ -338,7 +338,7 @@ class GroupController extends Controller
         $users = User::where('id', '!=', Auth::id())
             ->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");  
             })
             ->select('id', 'name', 'email', 'avatar')
             ->limit(10)

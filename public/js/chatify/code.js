@@ -25,6 +25,10 @@ const messagesContainer = $(".messenger-messagingView .m-body"),
 const getMessengerId = () => $("meta[name=id]").attr("content");
 const setMessengerId = (id) => $("meta[name=id]").attr("content", id);
 
+
+// ✅ ADD THIS - To prevent duplicate message processing
+const processedMessageIds = new Set();
+
 /**
  *-------------------------------------------------------------
  * Pusher initialization
@@ -51,6 +55,144 @@ if (typeof pusher !== 'undefined') {
   pusher.bind_global(function (eventName, data) {
     console.log('🌐 ALL EVENTS:', eventName, data);
   });
+}
+/**
+ *-------------------------------------------------------------
+ * Notification Functions - ORDER MATTERS!
+ *-------------------------------------------------------------
+ */
+
+// ============================================
+// 1. FIRST: Bell Status Function (called by others)
+// ============================================
+function updateNotificationBell() {
+  if (!("Notification" in window)) {
+    $('#notification-status-dot').css('background', '#b2bec3');
+    return;
+  }
+
+  const dot = $('#notification-status-dot');
+
+  if (Notification.permission === "granted") {
+    dot.css('background', '#00b894');
+    $('#notification-bell i').css('color', '#00b894');
+  } else if (Notification.permission === "denied") {
+    dot.css('background', '#ff6b6b');
+    $('#notification-bell i').css('color', '#ff6b6b');
+  } else {
+    dot.css('background', '#fdcb6e');
+    $('#notification-bell i').css('color', '#fdcb6e');
+  }
+}
+
+// ============================================
+// 2. SECOND: Helper Functions
+// ============================================
+function showNotificationMessage(message) {
+  let msgHtml = `
+    <div id="notification-msg" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2d3436;color:white;padding:12px 24px;border-radius:8px;z-index:999999;font-size:14px;box-shadow:0 4px 15px rgba(0,0,0,0.2);animation:slideUp 0.3s ease;">
+      ${message}
+    </div>
+  `;
+  $('body').append(msgHtml);
+  setTimeout(function () {
+    $('#notification-msg').fadeOut(300, function () { $(this).remove(); });
+  }, 3000);
+}
+
+function dismissAlert() {
+  $('#notification-alert').remove();
+}
+
+// ============================================
+// 3. THIRD: Alert Display Function
+// ============================================
+function showPermissionAlert() {
+  let alertHtml = `
+    <div id="notification-alert" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#ffffff;border-radius:12px;padding:20px 25px;box-shadow:0 10px 40px rgba(0,0,0,0.2);z-index:999999;max-width:450px;width:90%;border-left:4px solid #0984e3;animation:slideUp 0.3s ease;">
+      <div style="display:flex;align-items:center;gap:15px;">
+        <div style="flex-shrink:0;">
+          <img src="/at-law-logo.webp" alt="Logo" style="width:45px;height:45px;border-radius:50%;">
+        </div>
+        <div style="flex:1;">
+          <h4 style="margin:0 0 5px 0;color:#2d3436;font-size:15px;font-weight:600;">Enable Notifications</h4>
+          <p style="margin:0;color:#636e72;font-size:13px;">Get notified when you receive new messages</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button onclick="allowNotifications()" style="padding:8px 18px;background:#0984e3;color:white;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;">
+            Allow
+          </button>
+          <button onclick="dismissAlert()" style="padding:8px 14px;background:#f1f2f6;color:#2d3436;border:none;border-radius:6px;font-size:13px;cursor:pointer;">
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes slideUp {
+        from { transform: translateX(-50%) translateY(30px); opacity: 0; }
+        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+      }
+    </style>
+  `;
+
+  $('#notification-alert').remove();
+  $('body').append(alertHtml);
+}
+
+// ============================================
+// 4. FOURTH: Permission Request Function
+// ============================================
+function requestNotificationPermission() {
+  if (!("Notification" in window)) {
+    console.log("This browser does not support notifications");
+    return;
+  }
+
+  if (Notification.permission === "granted") {
+    console.log("✅ Notifications already enabled");
+    updateNotificationBell();
+    return;
+  }
+
+  if (Notification.permission === "denied") {
+    console.log("❌ Notifications denied");
+    updateNotificationBell();
+    return;
+  }
+
+  if (Notification.permission === "default") {
+    showPermissionAlert();
+  }
+}
+
+// ============================================
+// 5. FIFTH: Allow Function (called from alert)
+// ============================================
+function allowNotifications() {
+  $('#notification-alert').remove();
+  Notification.requestPermission().then(function (permission) {
+    if (permission === "granted") {
+      showNotificationMessage("✅ Notifications enabled!");
+      updateNotificationBell();
+    } else {
+      showNotificationMessage("❌ Notifications denied");
+      updateNotificationBell();
+    }
+  });
+}
+
+// ============================================
+// 6. SIXTH: Bell Dropdown Functions
+// ============================================
+function requestNotificationFromBell() {
+  $('#notification-dropdown').remove();
+  showPermissionAlert();
+}
+
+function disableNotifications() {
+  $('#notification-dropdown').remove();
+  alert('To disable notifications, please go to your browser settings and block notifications for this site.');
 }
 /**
  *-------------------------------------------------------------
@@ -688,7 +830,7 @@ channel.bind("messaging", function (data) {
 
     new Notification(senderName || "New Message", {
       body: messageText || "Sent you a message",
-      icon: "/favicon.ico",
+      icon: "/at-law-logo.webp",
     });
   }
 
@@ -1341,7 +1483,89 @@ function setActiveStatus(status) {
 $(document).ready(function () {
   // get contacts list
   getContacts();
+  // ✅ ADD CLICK HANDLER HERE (inside document ready)
+  $(document).on('click', '#notification-bell', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
 
+    if (!("Notification" in window)) {
+      alert('Your browser does not support notifications.');
+      return;
+    }
+
+    // Remove existing dropdown
+    $('#notification-dropdown').remove();
+
+    let statusText = '';
+    let statusColor = '';
+    let actionButton = '';
+
+    if (Notification.permission === "granted") {
+      statusText = '✅ Notifications Enabled';
+      statusColor = '#00b894';
+      actionButton = `
+                <button onclick="disableNotifications()" style="padding:8px 16px;background:#ff6b6b;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;width:100%;">
+                    Disable Notifications
+                </button>
+            `;
+    } else if (Notification.permission === "denied") {
+      statusText = '❌ Notifications Blocked';
+      statusColor = '#ff6b6b';
+      actionButton = `
+                <div style="font-size:12px;color:#636e72;padding:8px;background:#f8f9fa;border-radius:6px;">
+                    Please enable in browser settings
+                </div>
+            `;
+    } else {
+      statusText = '🔔 Notifications Off';
+      statusColor = '#fdcb6e';
+      actionButton = `
+                <button onclick="requestNotificationFromBell()" style="padding:8px 16px;background:#0984e3;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;width:100%;">
+                    Enable Notifications
+                </button>
+            `;
+    }
+
+    let dropdownHtml = `
+            <div id="notification-dropdown" style="position:fixed;top:60px;right:20px;background:white;border-radius:12px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,0.15);z-index:999999;min-width:250px;border:1px solid #e9ecef;animation:slideDown 0.2s ease;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                    <img src="/at-law-logo.webp" alt="Logo" style="width:40px;height:40px;border-radius:50%;">
+                    <div>
+                        <h4 style="margin:0;font-size:14px;color:#2d3436;">Notification Settings</h4>
+                        <span style="font-size:12px;color:${statusColor};font-weight:500;">${statusText}</span>
+                    </div>
+                </div>
+                <div style="border-top:1px solid #e9ecef;padding-top:12px;">
+                    ${actionButton}
+                    <button onclick="$('#notification-dropdown').remove()" style="margin-top:8px;padding:6px 12px;background:transparent;color:#636e72;border:1px solid #dfe6e9;border-radius:6px;cursor:pointer;font-size:12px;width:100%;">
+                        Close
+                    </button>
+                </div>
+            </div>
+            <style>
+                @keyframes slideDown {
+                    from { transform: translateY(-10px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+            </style>
+        `;
+
+    $('body').append(dropdownHtml);
+
+    // Close dropdown when clicking outside
+    setTimeout(function () {
+      $(document).one('click', function (e) {
+        if (!$(e.target).closest('#notification-dropdown').length && !$(e.target).closest('#notification-bell').length) {
+          $('#notification-dropdown').remove();
+        }
+      });
+    }, 100);
+  });
+
+
+  setTimeout(function () {
+    requestNotificationPermission();
+  }, 2000);
   // get contacts list
   getFavoritesList();
 
@@ -2057,6 +2281,17 @@ if (typeof pusher !== 'undefined') {
 
     if (eventName === 'App\\Events\\GroupMessageSent') {
       console.log('🎯 GROUP EVENT CAPTURED!', data);
+      // ✅ ADD THIS - Check for duplicates
+      const messageId = data.message?.id || data.id;
+      if (messageId && processedMessageIds.has(messageId)) {
+        console.log('⏭️ Duplicate message, skipping global handler');
+        return;
+      }
+      if (messageId) {
+        processedMessageIds.add(messageId);
+        // Clear after 3 seconds
+        setTimeout(() => processedMessageIds.delete(messageId), 3000);
+      }
       handleGroupMessage(data);
     }
   });
@@ -2138,7 +2373,7 @@ function handleGroupMessage(data) {
 
     new Notification(senderName + ' in ' + groupName, {
       body: msgText,
-      icon: '/favicon.ico'
+      icon: '/at-law-logo.webp'
     });
     console.log('🔔 Notification shown (tab hidden)');
   }
@@ -2355,6 +2590,85 @@ console.log('✅ Group handler ready!');
   //   console.log('✅ Group message handler bound successfully!');
   // }
 
+  let selectedMembers = [];
+  // ============================================
+  // SELECT USER
+  // ============================================
+  $(document).on('click', '.group-user-item', function () {
+    let id = $(this).data('id');
+    let name = $(this).data('name');
+    if (selectedMembers.includes(id)) return;
+    selectedMembers.push(id);
+    $('#selected-members').append(`
+            <span class="member-chip" data-id="${id}">
+                ${name}
+                <span class="member-remove">×</span>
+            </span>
+        `);
+    $('#group-user-search').val('');
+    $('#group-search-results').html('');
+  });
+
+  // ============================================
+  // REMOVE USER
+  // ============================================
+  $(document).on('click', '.member-remove', function () {
+    let chip = $(this).closest('.member-chip');
+    let id = chip.data('id');
+    selectedMembers = selectedMembers.filter(x => x != id);
+    chip.remove();
+  });
+
+
+  // ============================================
+  // CREATE GROUP
+  // ============================================
+  $(document).on('click', '#save-group', function () {
+    let groupName = $('#group_name').val().trim();
+    if (!groupName) return alert('Enter group name');
+    if (selectedMembers.length === 0) return alert('Select members');
+    let formData = new FormData();
+    formData.append('name', groupName);
+    let image = $('#group_image')[0].files[0];
+    if (image) formData.append('image', image);
+    selectedMembers.forEach(id => {
+      formData.append('members[]', id);
+    });
+    formData.append('_token', $('meta[name="csrf-token"]').attr('content'));
+    $.ajax({
+      url: '/groups/store',
+      type: 'POST',
+      data: formData,
+      processData: false,
+      contentType: false,
+      success: function (response) {
+        loadGroups();
+        // 🔥 SUBSCRIBE TO THE NEW GROUP CHANNEL
+        let groupId = response.group_id;
+        if (groupId) {
+          console.log('📡 Subscribing to new group.' + groupId);
+          let channel = pusher.subscribe('group.' + groupId);
+          channel.bind('App\\Events\\GroupMessageSent', function (data) {
+            console.log('📨 Message on new group.' + groupId, data);
+            if (typeof handleGroupMessage === 'function') {
+              handleGroupMessage(data);
+            }
+          });
+          if (typeof window.groupChannels === 'undefined') {
+            window.groupChannels = {};
+          }
+          window.groupChannels[groupId] = channel;
+        }
+        selectedMembers = [];
+        $('#group_name').val('');
+        $('#group_image').val('');
+        $('#selected-members').html('');
+        $('.app-modal[data-name="create-group"]').fadeOut(200);
+      }
+    });
+  });
+
+
   // ============================================
   // PREVENT PRIVATE CHAT MESSAGES FROM LOADING IN GROUPS
   // ============================================
@@ -2465,7 +2779,7 @@ console.log('✅ Group handler ready!');
         html = `<div class="group-no-results">No users found</div>`;
       }
       users.forEach(user => {
-        let avatar = user.avatar ? user.avatar : '/storage/users-avatar/avatar.png';
+        let avatar = user.avatar ? `/storage/users-avatar/${user.avatar}` : '/images/avatar.png';
         html += `
                     <div class="group-user-item" data-id="${user.id}" data-name="${user.name}">
                         <div class="group-user-avatar">
@@ -2482,81 +2796,6 @@ console.log('✅ Group handler ready!');
     });
   });
 
-  // ============================================
-  // SELECT USER
-  // ============================================
-  $(document).on('click', '.group-user-item', function () {
-    let id = $(this).data('id');
-    let name = $(this).data('name');
-    if (selectedMembers.includes(id)) return;
-    selectedMembers.push(id);
-    $('#selected-members').append(`
-            <span class="member-chip" data-id="${id}">
-                ${name}
-                <span class="member-remove">×</span>
-            </span>
-        `);
-    $('#group-user-search').val('');
-    $('#group-search-results').html('');
-  });
-
-  // ============================================
-  // REMOVE USER
-  // ============================================
-  $(document).on('click', '.member-remove', function () {
-    let chip = $(this).closest('.member-chip');
-    let id = chip.data('id');
-    selectedMembers = selectedMembers.filter(x => x != id);
-    chip.remove();
-  });
-
-  // ============================================
-  // CREATE GROUP
-  // ============================================
-  $(document).on('click', '#save-group', function () {
-    let groupName = $('#group_name').val().trim();
-    if (!groupName) return alert('Enter group name');
-    if (selectedMembers.length === 0) return alert('Select members');
-    let formData = new FormData();
-    formData.append('name', groupName);
-    let image = $('#group_image')[0].files[0];
-    if (image) formData.append('image', image);
-    selectedMembers.forEach(id => {
-      formData.append('members[]', id);
-    });
-    formData.append('_token', $('meta[name="csrf-token"]').attr('content'));
-    $.ajax({
-      url: '/groups/store',
-      type: 'POST',
-      data: formData,
-      processData: false,
-      contentType: false,
-      success: function () {
-        loadGroups();
-        // 🔥 SUBSCRIBE TO THE NEW GROUP CHANNEL
-        let groupId = response.group_id;
-        if (groupId) {
-          console.log('📡 Subscribing to new group.' + groupId);
-          let channel = pusher.subscribe('group.' + groupId);
-          channel.bind('App\\Events\\GroupMessageSent', function (data) {
-            console.log('📨 Message on new group.' + groupId, data);
-            if (typeof handleGroupMessage === 'function') {
-              handleGroupMessage(data);
-            }
-          });
-          if (typeof window.groupChannels === 'undefined') {
-            window.groupChannels = {};
-          }
-          window.groupChannels[groupId] = channel;
-        }
-        selectedMembers = [];
-        $('#group_name').val('');
-        $('#group_image').val('');
-        $('#selected-members').html('');
-        $('.app-modal[data-name="create-group"]').fadeOut(200);
-      }
-    });
-  });
 
   // ============================================
   // LOAD GROUPS - WITH CHANNEL SUBSCRIPTION
@@ -2584,6 +2823,18 @@ console.log('✅ Group handler ready!');
         // 🔥 BIND THE EVENT DIRECTLY TO THIS CHANNEL
         channel.bind('App\\Events\\GroupMessageSent', function (data) {
           console.log('📨 Message on group.' + groupId, data);
+
+          // ✅ ADD THIS - Check for duplicates
+          const messageId = data.message?.id || data.id;
+          if (messageId && processedMessageIds.has(messageId)) {
+            console.log('⏭️ Duplicate message, skipping per-group handler');
+            return;
+          }
+          if (messageId) {
+            processedMessageIds.add(messageId);
+            // Clear after 3 seconds
+            setTimeout(() => processedMessageIds.delete(messageId), 3000);
+          }
           // Call the existing handler
           if (typeof handleGroupMessage === 'function') {
             handleGroupMessage(data);
@@ -2695,7 +2946,27 @@ console.log('✅ Group handler ready!');
       window.groupChannel.unsubscribe();
       window.groupChannel = null;
     }
+
     window.groupChannel = pusher.subscribe('group.' + groupId);
+    // ✅ ADD THIS - Bind with duplicate check
+    window.groupChannel.bind('App\\Events\\GroupMessageSent', function (data) {
+      console.log('📨 Message on active group.' + groupId, data);
+      // ✅ ADD THIS - Check for duplicates
+      const messageId = data.message?.id || data.id;
+      if (messageId && processedMessageIds.has(messageId)) {
+        console.log('⏭️ Duplicate message, skipping active group handler');
+        return;
+      }
+      if (messageId) {
+        processedMessageIds.add(messageId);
+        // Clear after 3 seconds
+        setTimeout(() => processedMessageIds.delete(messageId), 3000);
+      }
+      // Call the existing handler
+      if (typeof handleGroupMessage === 'function') {
+        handleGroupMessage(data);
+      }
+    });
     window.groupChannel.bind('pusher:subscription_succeeded', function () {
       console.log('✅ Subscribed to group.' + groupId);
     });
@@ -2988,7 +3259,7 @@ function renderMembersList(members, isAdmin, isCreator) {
   }
 
   members.forEach(member => {
-    let avatar = member.avatar ? '/storage/' + member.avatar : '/images/avatar.png';
+    let avatar = member.avatar ? '/storage/users-avatar/' + member.avatar : '/images/avatar.png';
     let isCurrentUser = member.id == auth_id;
     let isCreatorUser = member.is_creator;
     let isAdminUser = member.is_admin;
@@ -3141,7 +3412,7 @@ $(document).on('keyup', '#add-member-search', function () {
             // Check if user is already in the group
             if (currentGroupMembers.includes(user.id)) {
               // Show "already in group" message for this user
-              let avatar = user.avatar ? user.avatar : '/storage/users-avatar/avatar.png';
+              let avatar = user.avatar ? '/storage/users-avatar/' + user.avatar : '/storage/users-avatar/avatar.png';
               html += `
                                 <div class="group-user-item already-member" style="opacity:0.6; cursor:not-allowed;">
                                     <div class="group-user-avatar">
@@ -3156,7 +3427,7 @@ $(document).on('keyup', '#add-member-search', function () {
             } else {
               // Show available user (clickable)
               hasAvailableUsers = true;
-              let avatar = user.avatar ? user.avatar : '/storage/users-avatar/avatar.png';
+              let avatar = user.avatar ? '/storage/users-avatar/' + user.avatar : '/storage/users-avatar/avatar.png';
               html += `
                                 <div class="group-user-item add-member-item" data-id="${user.id}" data-name="${user.name}" data-avatar="${avatar}">
                                     <div class="group-user-avatar">
@@ -3906,3 +4177,7 @@ $(document).on('mouseleave', '#reaction-tooltip', function () {
 $(document).on('click', function () {
   $('#reaction-tooltip').fadeOut(200);
 });
+
+
+
+

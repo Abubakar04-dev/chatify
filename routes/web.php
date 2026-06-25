@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\ProfileController;
@@ -17,6 +18,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::delete('/profile-delete', [ProfileController::class, 'delete'])->name('profile.delete');
+
+
+
+
 
     Route::get('/groups/create', [GroupController::class, 'create']);
     Route::post('/groups/store', [GroupController::class, 'store']);
@@ -44,4 +50,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/reactions/get', [MessageReactionController::class, 'getReactions']);
 });
 
+
+Route::prefix('admin')->middleware(['auth'])->group(function () {
+    // User Management Routes
+    Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+    Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
+    Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
+    Route::get('/users/{user}', [UserController::class, 'show'])->name('admin.users.show');
+    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
+    Route::put('/users/{user}', [UserController::class, 'update'])->name('admin.users.update');
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+    Route::post('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('admin.users.toggle-status');
+});
 require __DIR__ . '/auth.php';
