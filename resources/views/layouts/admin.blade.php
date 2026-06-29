@@ -622,12 +622,13 @@
                 <span>Users</span>
             </a>
             @endif
-            
+            @if(auth()->user()->role === 'super_admin')
             <a href="{{ route('admin.ip-addresses.index') }}" target="_blank">
                 <i class="fas fa-comment-dots"></i>
                 <span>IP Addresses</span>
             </a>
-         
+            @endif
+
             <a href="{{ url('/chatify') }}" target="_blank">
                 <i class="fas fa-comment-dots"></i>
                 <span>Chat</span>
