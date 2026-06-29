@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\Admin\IpAddressController;
 use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -13,15 +14,11 @@ Route::get('/dashboard', function () {
     return view('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth','ip'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::delete('/profile-delete', [ProfileController::class, 'delete'])->name('profile.delete');
-
-
-
-
 
     Route::get('/groups/create', [GroupController::class, 'create']);
     Route::post('/groups/store', [GroupController::class, 'store']);
@@ -47,18 +44,32 @@ Route::middleware('auth')->group(function () {
     Route::post('/reactions/toggle-private', [MessageReactionController::class, 'togglePrivateReaction']);
     Route::post('/reactions/toggle-group', [MessageReactionController::class, 'toggleGroupReaction']);
     Route::post('/reactions/get', [MessageReactionController::class, 'getReactions']);
-});
 
 
-Route::prefix('admin')->middleware(['auth'])->group(function () {
-    // User Management Routes
-    Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
-    Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
-    Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
-    Route::get('/users/{user}', [UserController::class, 'show'])->name('admin.users.show');
-    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
-    Route::put('/users/{user}', [UserController::class, 'update'])->name('admin.users.update');
-    Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('admin.users.destroy');
-    Route::post('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('admin.users.toggle-status');
+
+    Route::prefix('admin')->group(function () {
+        // User Management Routes
+        Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+        Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
+        Route::get('/users/{user}', [UserController::class, 'show'])->name('admin.users.show');
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('admin.users.update');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+        Route::post('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('admin.users.toggle-status');
+    });
+
+    // ============================================
+    // IP MANAGEMENT ROUTES (Simple)
+    // ============================================
+    Route::prefix('admin')->group(function () {
+
+        // List IPs
+        Route::get('/ip-addresses', [IpAddressController::class, 'index'])->name('admin.ip-addresses.index');
+        Route::post('/ip-addresses', [IpAddressController::class, 'store'])->name('admin.ip-addresses.store');
+        Route::put('/ip-addresses/{id}', [IpAddressController::class, 'update'])->name('admin.ip-addresses.update');
+        Route::delete('/ip-addresses/{id}', [IpAddressController::class, 'destroy'])->name('admin.ip-addresses.destroy');
+        Route::post('/ip-addresses/{id}/toggle', [IpAddressController::class, 'toggleActive'])->name('admin.ip-addresses.toggle');
+    });
 });
 require __DIR__ . '/auth.php';

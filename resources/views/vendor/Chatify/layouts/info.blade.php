@@ -17,7 +17,7 @@
     <div class="avatar av-l chatify-d-flex" style="margin: 0 auto;"></div>
     <p class="info-name" style="text-align: center;">{{ config('chatify.name') }}</p>
     <div class="messenger-infoView-btns" style="text-align: center;">
-        <a href="#" class="danger delete-conversation">Delete Conversation</a>
+        <!-- <a href="#" class="danger delete-conversation">Delete Conversation</a> -->
     </div>
     <div class="messenger-infoView-shared">
         <p class="messenger-title"><span>Shared Photos</span></p>

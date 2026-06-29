@@ -89,4 +89,5 @@ class User extends Authenticatable
     {
         return $query->whereIn('role', ['super_admin', 'admin']);
     }
+   
 }

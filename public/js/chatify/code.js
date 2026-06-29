@@ -28,6 +28,8 @@ const setMessengerId = (id) => $("meta[name=id]").attr("content", id);
 
 // ✅ ADD THIS - To prevent duplicate message processing
 const processedMessageIds = new Set();
+const processedPrivateNotifications = new Set();
+
 
 /**
  *-------------------------------------------------------------
@@ -798,6 +800,15 @@ initClientChannel();
 // Listen to messages, and append if data received
 channel.bind("messaging", function (data) {
 
+  // ✅ ADD THIS - Prevent duplicate notifications
+  const notificationKey = data.id + '_' + data.from_id + '_' + data.to_id;
+  if (processedPrivateNotifications.has(notificationKey)) {
+    console.log('⏭️ Duplicate private notification, skipping');
+    return;
+  }
+  processedPrivateNotifications.add(notificationKey);
+  setTimeout(() => processedPrivateNotifications.delete(notificationKey), 5000);
+
   // Only notify when browser tab is not active
   if (
     document.hidden &&
@@ -828,10 +839,10 @@ channel.bind("messaging", function (data) {
         .text()
         .trim();
 
-    new Notification(senderName || "New Message", {
-      body: messageText || "Sent you a message",
-      icon: "/at-law-logo.webp",
-    });
+    // new Notification(senderName || "New Message", {
+    //   body: messageText || "Sent you a message",
+    //   icon: "/at-law-logo.webp",
+    // });
   }
 
   if (data.from_id == getMessengerId() && data.to_id == auth_id) {
@@ -2305,6 +2316,7 @@ function handleGroupMessage(data) {
   var groupId = messageData.group_id;
   var senderId = messageData.sender_id;
 
+  
   // Skip own messages
   if (senderId == auth_id) {
     console.log('⏭️ Own message, skipping');

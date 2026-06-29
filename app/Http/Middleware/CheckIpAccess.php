@@ -10,6 +10,7 @@ class CheckIpAccess
 {
     public function handle(Request $request, Closure $next)
     {
+      
         $clientIp = $request->ip();
 
         // Skip for localhost
@@ -17,38 +18,39 @@ class CheckIpAccess
             return $next($request);
         }
 
-        // ✅ Check if user is Super Admin
-        $isSuperAdmin = auth()->check() && auth()->user() && auth()->user()->isSuperAdmin();
+        // ✅ Check if user is Super Admin by role only
+        $isSuperAdmin = false;
+        if (auth()->check()) {
+            $user = auth()->user();
+            // Check by role only
+            if (isset($user->role) && ($user->role === 'super_admin' )) {
+                $isSuperAdmin = true;
+            }
+        }
 
         // ✅ If Super Admin, auto-add their IP if it doesn't exist
         if ($isSuperAdmin) {
             // Check if IP exists
             $ipRecord = IpAddress::where('ip_address', $clientIp)->first();
-
+            
             if (!$ipRecord) {
                 // Auto-add Super Admin's IP
                 IpAddress::create([
                     'ip_address' => $clientIp,
-                    'name' => 'Super Admin - ' . auth()->user()->name,
+                    'name' => auth()->user()->name ?? 'Admin',
                     'is_active' => true,
                 ]);
-
-                // Allow access (IP now exists)
-                return $next($request);
-            }
-
-            // If IP exists but is inactive, activate it
-            if (!$ipRecord->is_active) {
+            } elseif (!$ipRecord->is_active) {
+                // If IP exists but is inactive, activate it
                 $ipRecord->update(['is_active' => true]);
             }
-
+            
             // Allow Super Admin access
             return $next($request);
         }
 
         // For non-admin users: Check if IP table is empty
-        $ipCount = IpAddress::count();
-        if ($ipCount === 0) {
+        if (IpAddress::count() === 0) {
             return $next($request);
         }
 

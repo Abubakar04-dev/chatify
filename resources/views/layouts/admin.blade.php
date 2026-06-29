@@ -622,6 +622,12 @@
                 <span>Users</span>
             </a>
             @endif
+            
+            <a href="{{ route('admin.ip-addresses.index') }}" target="_blank">
+                <i class="fas fa-comment-dots"></i>
+                <span>IP Addresses</span>
+            </a>
+         
             <a href="{{ url('/chatify') }}" target="_blank">
                 <i class="fas fa-comment-dots"></i>
                 <span>Chat</span>
