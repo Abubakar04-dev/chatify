@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Login - Atlaw Communication</title>
-    
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+
     <style>
         * {
             margin: 0;
@@ -38,6 +39,7 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -192,7 +194,7 @@
             color: #667eea;
         }
 
-        .input-group-custom .form-control:focus + .input-icon {
+        .input-group-custom .form-control:focus+.input-icon {
             color: #667eea;
         }
 
@@ -295,7 +297,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* Session Status */
@@ -373,6 +377,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <div class="login-container">
@@ -420,17 +425,9 @@
                         <span class="input-icon">
                             <i class="fas fa-envelope"></i>
                         </span>
-                        <input 
-                            id="email" 
-                            type="email" 
-                            name="email" 
-                            class="form-control @error('email') is-invalid @enderror" 
-                            value="{{ old('email') }}"
-                            placeholder="Enter your email"
-                            required 
-                            autofocus
-                            autocomplete="username"
-                        >
+                        <input id="email" type="email" name="email"
+                            class="form-control @error('email') is-invalid @enderror" value="{{ old('email') }}"
+                            placeholder="Enter your email" required autofocus autocomplete="username">
                     </div>
                     @error('email')
                         <span class="error-message">{{ $message }}</span>
@@ -444,15 +441,9 @@
                         <span class="input-icon">
                             <i class="fas fa-lock"></i>
                         </span>
-                        <input 
-                            id="password" 
-                            type="password" 
-                            name="password" 
-                            class="form-control @error('password') is-invalid @enderror" 
-                            placeholder="Enter your password"
-                            required
-                            autocomplete="current-password"
-                        >
+                        <input id="password" type="password" name="password"
+                            class="form-control @error('password') is-invalid @enderror"
+                            placeholder="Enter your password" required autocomplete="current-password">
                         <button type="button" class="toggle-password" id="togglePassword">
                             <i class="fas fa-eye-slash"></i>
                         </button>
@@ -470,7 +461,7 @@
                             Remember me
                         </label>
                     </div>
-                    
+
                 </div>
 
                 {{-- Submit Button --}}
@@ -483,7 +474,8 @@
 
         {{-- Footer --}}
         <div class="login-footer">
-            &copy; {{ date('Y') }} <a href="#">{{ config('app.name', 'Atlaw Communication') }}</a>. All rights reserved.
+            &copy; {{ date('Y') }} <a href="#">{{ config('app.name', 'Atlaw Communication') }}</a>. All rights
+            reserved.
         </div>
     </div>
 
@@ -494,7 +486,7 @@
         document.getElementById('togglePassword').addEventListener('click', function() {
             const passwordInput = document.getElementById('password');
             const icon = this.querySelector('i');
-            
+
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
                 icon.classList.remove('fa-eye-slash');
@@ -507,22 +499,58 @@
         });
 
         // ============================================
-        // LOGIN FORM LOADING STATE
-        // ============================================
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            const btn = document.getElementById('loginBtn');
-            const btnText = document.getElementById('btnText');
-            const spinner = document.getElementById('btnSpinner');
-            
-            btn.disabled = true;
-            btnText.style.display = 'none';
-            spinner.style.display = 'block';
-        });
-
-        // ============================================
-        // AUTO-HIDE SESSION MESSAGES
+        // LOGIN FORM SUBMISSION (FIXED)
         // ============================================
         document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('loginForm');
+            const loginBtn = document.getElementById('loginBtn');
+            const btnText = document.getElementById('btnText');
+            const spinner = document.getElementById('btnSpinner');
+            let isSubmitting = false; // Prevent double submission
+
+            // Handle form submission
+            loginForm.addEventListener('submit', function(e) {
+                // Prevent default submission
+                e.preventDefault();
+
+                // Prevent double submission
+                if (isSubmitting) {
+                    return;
+                }
+
+                // Show loading state
+                isSubmitting = true;
+                loginBtn.disabled = true;
+                btnText.style.display = 'none';
+                spinner.style.display = 'block';
+
+                // Submit the form normally after a small delay
+                setTimeout(() => {
+                    // Re-enable the button after submission
+                    // The form will redirect, but if there's an error, we need to reset
+                    this.submit();
+                }, 300);
+            });
+
+            // Reset button state if there are validation errors
+            // This handles the case where the form returns with errors
+            @if ($errors->any())
+                loginBtn.disabled = false;
+                btnText.style.display = 'inline';
+                spinner.style.display = 'none';
+                isSubmitting = false;
+            @endif
+
+            // ============================================
+            // ENTER KEY SUPPORT (IMPROVED)
+            // ============================================
+            // Remove the global keydown listener and use native form behavior
+            // The form will naturally submit on Enter key press
+            // Just ensure all inputs are inside the form
+
+            // ============================================
+            // AUTO-HIDE SESSION MESSAGES
+            // ============================================
             const statusMessages = document.querySelectorAll('.session-status');
             statusMessages.forEach(msg => {
                 setTimeout(() => {
@@ -533,23 +561,20 @@
                     }, 500);
                 }, 5000);
             });
-        });
 
-        // ============================================
-        // ENTER KEY SUPPORT FOR FORM
-        // ============================================
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                const activeElement = document.activeElement;
-                if (activeElement && activeElement.tagName === 'INPUT') {
-                    const form = activeElement.closest('form');
-                    if (form) {
-                        form.dispatchEvent(new Event('submit'));
-                    }
+            // ============================================
+            // PREVENT ACCIDENTAL DOUBLE CLICKS
+            // ============================================
+            loginBtn.addEventListener('click', function(e) {
+                // If the button is already disabled, prevent the click
+                if (this.disabled) {
+                    e.preventDefault();
+                    return false;
                 }
-            }
+            });
         });
     </script>
 
 </body>
+
 </html>

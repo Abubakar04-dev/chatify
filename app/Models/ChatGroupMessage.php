@@ -13,7 +13,23 @@ class ChatGroupMessage extends Model
         'message',
         'attachment',
         'attachment_type',
+        'reply_to_id',
     ];
+
+
+    
+    // 🔥 RELATIONSHIP: Get the message being replied to
+    public function replyTo()
+    {
+        return $this->belongsTo(ChatGroupMessage::class, 'reply_to_id')
+            ->with('sender');
+    }
+
+    // 🔥 RELATIONSHIP: Get replies to this message
+    public function replies()
+    {
+        return $this->hasMany(ChatGroupMessage::class, 'reply_to_id');
+    }
 
     public function sender()
     {

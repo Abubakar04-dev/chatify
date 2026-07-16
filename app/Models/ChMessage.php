@@ -12,6 +12,19 @@ class ChMessage extends Model
 
     protected $table = 'ch_messages'; // Make sure this matches your table name
 
+     // 🔥 RELATIONSHIP: Get the message being replied to
+    public function replyTo()
+    {
+        return $this->belongsTo(ChMessage::class, 'reply_to_id')
+            ->with('fromUser');
+    }
+
+    // 🔥 RELATIONSHIP: Get replies to this message
+    public function replies()
+    {
+        return $this->hasMany(ChMessage::class, 'reply_to_id');
+    }
+
     public function reactions()
     {
         return $this->hasMany(MessageReaction::class, 'message_id');

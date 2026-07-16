@@ -10,7 +10,6 @@ use App\Models\ChatGroupRead;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class GroupController extends Controller
@@ -18,6 +17,7 @@ class GroupController extends Controller
     public function create()
     {
         $users = User::where('id', '!=', Auth::id())->get();
+
         return view('groups.create', compact('users'));
     }
 
@@ -26,7 +26,7 @@ class GroupController extends Controller
         $request->validate([
             'name' => 'required|max:255',
             'members' => 'required|array',
-            'image' => 'nullable|image|max:2048'
+            'image' => 'nullable|image|max:2048',
         ]);
 
         $image = null;
@@ -39,26 +39,26 @@ class GroupController extends Controller
         $group = ChatGroup::create([
             'name' => $request->name,
             'image' => $image,
-            'created_by' => Auth::id()
+            'created_by' => Auth::id(),
         ]);
 
         ChatGroupMember::create([
             'group_id' => $group->id,
             'user_id' => Auth::id(),
-            'is_admin' => true
+            'is_admin' => true,
         ]);
 
         foreach ($request->members as $memberId) {
             ChatGroupMember::create([
                 'group_id' => $group->id,
                 'user_id' => $memberId,
-                'is_admin' => false
+                'is_admin' => false,
             ]);
         }
 
         return response()->json([
             'success' => true,
-            'group_id' => $group->id
+            'group_id' => $group->id,
         ]);
     }
 
@@ -103,7 +103,7 @@ class GroupController extends Controller
     public function markAsRead(Request $request)
     {
         $request->validate([
-            'group_id' => 'required|exists:chat_groups,id'
+            'group_id' => 'required|exists:chat_groups,id',
         ]);
 
         $messages = ChatGroupMessage::where('group_id', $request->group_id)
@@ -117,7 +117,7 @@ class GroupController extends Controller
             ChatGroupRead::create([
                 'message_id' => $message->id,
                 'user_id' => auth()->id(),
-                'seen_at' => now()
+                'seen_at' => now(),
             ]);
         }
 
@@ -128,38 +128,36 @@ class GroupController extends Controller
     {
         return response()->json([
             'id' => $group->id,
-            'name' => $group->name
+            'name' => $group->name,
         ]);
     }
-
-
 
     public function messages(ChatGroup $group)
     {
         // Verify user is a member
-        if (!$group->members()->where('user_id', auth()->id())->exists()) {
+        if (! $group->members()->where('user_id', auth()->id())->exists()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // 🔥 LOAD MESSAGES WITH REACTIONS IN ONE QUERY
-        // $messages = ChatGroupMessage::where('group_id', $group->id)
-        //     ->with('sender')
-        //     ->with(['reactions' => function ($q) {
-        //         $q->with('user'); // Load user data for reactions
-        //     }])
-        //     ->orderBy('id', 'asc')
-        //     ->get();
+            $page = request()->get('page', 1);
+            $perPage = 50; // Load 50 messages at a time
 
-        // 🔥 FIX: Load messages with reactions using proper relationship
-        $messages = ChatGroupMessage::where('group_id', $group->id)
-            ->with('sender')
-            ->with(['reactions' => function ($q) {
-                $q->with(['user' => function ($query) {
-                    $query->select('id', 'name', 'avatar');
-                }]);
-            }])
-            ->orderBy('id', 'asc')
-            ->get();
+            // 🔥 LOAD MESSAGES WITH PAGINATION
+            $paginated = ChatGroupMessage::where('group_id', $group->id)
+                ->with('sender')
+                ->with(['replyTo' => function ($q) {
+                    $q->with('sender');
+                }])
+                ->with(['reactions' => function ($q) {
+                    $q->with(['user' => function ($query) {
+                        $query->select('id', 'name', 'avatar');
+                    }]);
+                }])
+                ->orderBy('id', 'desc')  // 🔥 Order by newest first for pagination
+                ->paginate($perPage, ['*'], 'page', $page);
+
+            // 🔥 Reverse to show oldest first (for display)
+            $messages = $paginated->reverse();
 
         $html = '';
         $lastDate = null;
@@ -177,7 +175,7 @@ class GroupController extends Controller
                     $dateDisplay = $this->formatDateDisplay($msg->created_at);
                     $html .= '
                 <div class="date-divider">
-                    <span>' . $dateDisplay . '</span>
+                    <span>'.$dateDisplay.'</span>
                 </div>
                 ';
                 }
@@ -187,20 +185,20 @@ class GroupController extends Controller
 
                 // Add text message
                 if ($msg->message) {
-                    $messageContent .= '<div class="message-text">' . e($msg->message) . '</div>';
+                    $messageContent .= '<div class="message-text">'.e($msg->message).'</div>';
                 }
 
                 // Add attachment
                 if ($msg->attachment) {
-                    $fileUrl = asset('storage/' . $msg->attachment);
+                    $fileUrl = asset('storage/'.$msg->attachment);
                     $isImage = str_starts_with($msg->attachment_type ?? '', 'image/');
 
                     if ($isImage) {
-                        $messageContent .= '<div class="chat-image" style="background-image: url(' . $fileUrl . '); max-width:200px; max-height:200px; background-size:cover; background-position:center; border-radius:8px; margin-top:5px; cursor:pointer;"></div>';
+                        $messageContent .= '<div class="chat-image" style="background-image: url('.$fileUrl.'); max-width:200px; max-height:200px; background-size:cover; background-position:center; border-radius:8px; margin-top:5px; cursor:pointer;"></div>';
                     } else {
                         $fileName = basename($msg->attachment);
                         $messageContent .= '<div class="file-attachment" style="padding:6px 10px; background:#f1f2f6; border-radius:6px; margin-top:4px; display:inline-block;">';
-                        $messageContent .= '<i class="fas fa-paperclip" style="font-size:12px;"></i> <a href="' . $fileUrl . '" target="_blank" style="color:#0984e3; text-decoration:none; font-size:13px;">' . $fileName . '</a>';
+                        $messageContent .= '<i class="fas fa-paperclip" style="font-size:12px;"></i> <a href="'.$fileUrl.'" target="_blank" style="color:#0984e3; text-decoration:none; font-size:13px;">'.$fileName.'</a>';
                         $messageContent .= '</div>';
                     }
                 }
@@ -208,16 +206,36 @@ class GroupController extends Controller
                 // Add time to message
                 $timeDisplay = $msg->created_at->format('h:i A');
 
+                 $replyHtml = '';
+                    if ($msg->replyTo) {
+                        $replyHtml = $this->buildReplyHtml($msg->replyTo);
+                    }
+
                 // 🔥 BUILD REACTIONS HTML DIRECTLY IN THE MESSAGE
                 $reactionsHtml = $this->buildReactionsHtml($msg->reactions);
+                $replyHtml = '';
+                    if ($msg->replyTo) {
+                        $replyHtml = $this->buildReplyHtml($msg->replyTo);
+                    }
 
-                $html .= '
+            $html .= '
             <div class="message-card ' . ($isMe ? 'mc-sender' : 'mc-receiver') . '" data-message-id="' . $msg->id . '">
                 <div class="message">
                     <div class="message-user" style="font-size:11px; font-weight:600; color:#636e72; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
                         <span>' . ($isMe ? 'You' : e($msg->sender->name)) . '</span>
-                        <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">' . $timeDisplay . '</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">' . $timeDisplay . '</span>
+                            <!-- 🔥 REPLY BUTTON -->
+                            <button class="reply-btn" 
+                                    data-message-id="' . $msg->id . '" 
+                                    data-sender-name="' . ($isMe ? 'You' : e($msg->sender->name)) . '"
+                                    data-message-text="' . e($msg->message ?? '') . '"
+                                    style="background:none; border:none; color:#b2bec3; cursor:pointer; font-size:12px; padding:2px 6px; border-radius:4px; transition:all 0.2s;">
+                                <i class="fas fa-reply"></i>
+                            </button>
+                        </div>
                     </div>
+                    ' . $replyHtml . '  <!-- 🔥 ADD THIS LINE -->
                     ' . $messageContent . '
                     ' . $reactionsHtml . '
                 </div>
@@ -232,38 +250,109 @@ class GroupController extends Controller
                 'name' => $group->name,
                 'image' => $group->image,
             ],
-            'messages_html' => $html
+            'messages_html' => $html,
+            'current_page' => $paginated->currentPage(),
+            'last_page' => $paginated->lastPage(),
+            'total' => $paginated->total(),
+            'has_more' => $paginated->hasMorePages(), // 🔥 Tells frontend if more messages exist
         ]);
     }
 
+
+    // 🔥 HELPER FUNCTION: Build reply preview HTML
+        private function buildReplyHtml($replyTo)
+        {
+            if (!$replyTo) {
+                return '';
+            }
+
+            $senderName = $replyTo->sender ? $replyTo->sender->name : 'Unknown';
+            $messageText = $replyTo->message ?? '';
+
+            // Get attachment preview
+            $attachmentText = '';
+            if ($replyTo->attachment) {
+                $isImage = str_starts_with($replyTo->attachment_type ?? '', 'image/');
+                if ($isImage) {
+                    $attachmentText = '📷 Image';
+                } else {
+                    $attachmentText = '📎 ' . basename($replyTo->attachment);
+                }
+            }
+
+            // If message is empty but has attachment
+            if (!$messageText && $attachmentText) {
+                $messageText = $attachmentText;
+            }
+
+            // Truncate long messages
+            if (strlen($messageText) > 60) {
+                $messageText = substr($messageText, 0, 60) . '...';
+            }
+
+            return '
+            <div class="message-reply-preview" style="background:#f1f2f6; padding:6px 10px; border-radius:6px; margin-bottom:4px; border-left:3px solid #667eea; font-size:12px;">
+                <div style="color:#636e72; font-weight:600; margin-bottom:2px;">
+                    <i class="fas fa-reply" style="font-size:10px; margin-right:4px;"></i>
+                    ' . e($senderName) . '
+                </div>
+                <div style="color:#2d3436; word-wrap:break-word; font-size:13px;">
+                    ' . e($messageText) . '
+                </div>
+            </div>
+            ';
+        }
+
     // 🔥 HELPER FUNCTION: Build reactions HTML
+    // 🔥 HELPER FUNCTION: Build reactions HTML with user names
     private function buildReactionsHtml($reactions)
     {
-        if (!$reactions || $reactions->isEmpty()) {
+        if (! $reactions || $reactions->isEmpty()) {
             return '';
         }
 
-        // Group reactions by emoji
+        // Group reactions by emoji with full reaction data
         $grouped = [];
         foreach ($reactions as $reaction) {
-            if (!isset($grouped[$reaction->reaction])) {
+            if (! isset($grouped[$reaction->reaction])) {
                 $grouped[$reaction->reaction] = [];
             }
-            $grouped[$reaction->reaction][] = $reaction->user_id;
+            $grouped[$reaction->reaction][] = $reaction;
         }
 
         $html = '<div class="message-reactions" style="display:flex; gap:3px; margin-top:4px; flex-wrap:wrap;">';
-        foreach ($grouped as $emoji => $users) {
-            $count = count($users);
-            $hasUserReacted = in_array(auth()->id(), $users);
+
+        foreach ($grouped as $emoji => $reactionsList) {
+            $count = count($reactionsList);
+            $hasUserReacted = false;
+            $userNames = [];
+
+            // 🔥 Collect user names and check if current user reacted
+            foreach ($reactionsList as $reaction) {
+                if ($reaction->user_id == auth()->id()) {
+                    $hasUserReacted = true;
+                }
+                // Get user name from the reaction's user relationship
+                $userName = $reaction->user->name ?? 'Unknown';
+                $userNames[] = $userName;
+            }
+
+            // 🔥 Create a comma-separated string of unique user names
+            $uniqueUserNames = array_unique($userNames);
+            $userNamesString = implode(', ', $uniqueUserNames);
+
+            // 🔥 Get the message ID from the first reaction
+            $messageId = $reactionsList[0]->message_id;
+
             $html .= '
-            <span class="reaction-badge ' . ($hasUserReacted ? 'active' : '') . '" 
-                  data-message-id="' . $reactions->first()->message_id . '" 
-                  data-reaction="' . $emoji . '"
-                  style="display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:' . ($hasUserReacted ? '#e8f5e9' : '#f1f2f6') . '; border-radius:12px; font-size:13px; cursor:pointer; border:' . ($hasUserReacted ? '1px solid #4caf50' : '1px solid transparent') . '; transition:all 0.2s;">
-                ' . $emoji . ' ' . $count . '
-            </span>
-        ';
+        <span class="reaction-badge '.($hasUserReacted ? 'active' : '').'" 
+              data-message-id="'.$messageId.'" 
+              data-reaction="'.$emoji.'"
+              data-users="'.htmlspecialchars($userNamesString).'"
+              data-user-count="'.$count.'"
+              style="display:inline-flex; align-items:center; gap:2px; padding:2px 8px; background:'.($hasUserReacted ? '#e8f5e9' : '#f1f2f6').'; border-radius:12px; font-size:13px; cursor:pointer; border:'.($hasUserReacted ? '1px solid #4caf50' : '1px solid transparent').'; transition:all 0.2s;">
+            '.$emoji.' '.$count.'
+        </span>';
         }
         $html .= '</div>';
 
@@ -271,7 +360,7 @@ class GroupController extends Controller
     }
 
     // Helper function for date display
-    function formatDateDisplay($date)
+    public function formatDateDisplay($date)
     {
         $now = now();
         $diff = $now->diffInDays($date);
@@ -292,7 +381,8 @@ class GroupController extends Controller
         $request->validate([
             'group_id' => 'required|exists:chat_groups,id',
             'message' => 'nullable|string',
-            'attachment' => 'nullable|file|max:10240' // Max 10MB
+            'attachment' => 'nullable|file|max:10240', 
+            'reply_to_id' => 'nullable|exists:chat_group_messages,id', // Max 10MB
         ]);
 
         $attachment = null;
@@ -305,11 +395,10 @@ class GroupController extends Controller
             $attachment_type = $file->getMimeType();
         }
 
-
         // 🔥 Make sure at least one of message or attachment is provided
-        if (!$request->message && !$attachment) {
+        if (! $request->message && ! $attachment) {
             return response()->json([
-                'error' => 'Please provide a message or an attachment'
+                'error' => 'Please provide a message or an attachment',
             ], 422);
         }
 
@@ -319,15 +408,16 @@ class GroupController extends Controller
             'message' => $request->message,
             'attachment' => $attachment,
             'attachment_type' => $attachment_type,
+            'reply_to_id' => $request->reply_to_id, 
         ]);
 
-        $message->load('sender');
+        $message->load(['sender', 'replyTo.sender']);
 
         broadcast(new GroupMessageSent($message))->toOthers();
 
         return response()->json([
             'success' => true,
-            'message' => $message
+            'message' => $message,
         ]);
     }
 
@@ -338,7 +428,7 @@ class GroupController extends Controller
         $users = User::where('id', '!=', Auth::id())
             ->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");  
+                    ->orWhere('email', 'like', "%{$search}%");
             })
             ->select('id', 'name', 'email', 'avatar')
             ->limit(10)
@@ -357,7 +447,7 @@ class GroupController extends Controller
     public function getMembers(ChatGroup $group)
     {
         // Verify user is a member
-        if (!$group->members()->where('user_id', auth()->id())->exists()) {
+        if (! $group->members()->where('user_id', auth()->id())->exists()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -408,7 +498,7 @@ class GroupController extends Controller
 
         $isCreator = $group->created_by == auth()->id();
 
-        if (!$isAdmin && !$isCreator) {
+        if (! $isAdmin && ! $isCreator) {
             return response()->json(['error' => 'Unauthorized - Admin only'], 403);
         }
 
@@ -465,7 +555,7 @@ class GroupController extends Controller
             ->where('is_admin', true)
             ->exists();
 
-        if (!$isAdmin && !$isCreator) {
+        if (! $isAdmin && ! $isCreator) {
             return response()->json(['error' => 'Unauthorized - Admin only'], 403);
         }
 
@@ -499,7 +589,7 @@ class GroupController extends Controller
         }
 
         $member = $group->members()->where('user_id', $request->user_id)->first();
-        if (!$member) {
+        if (! $member) {
             return response()->json(['error' => 'User is not a member'], 422);
         }
 
@@ -545,7 +635,7 @@ class GroupController extends Controller
             ->where('is_admin', true)
             ->exists();
 
-        if ($group->created_by != auth()->id() && !$isAdmin) {
+        if ($group->created_by != auth()->id() && ! $isAdmin) {
             return response()->json(['error' => 'Unauthorized - Admin only'], 403);
         }
 
