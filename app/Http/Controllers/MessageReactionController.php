@@ -16,7 +16,7 @@ class MessageReactionController extends Controller
     {
         $request->validate([
             'message_id' => 'required|exists:ch_messages,id',
-            'reaction' => 'required|string|in:👍,❤️,😂,😮,😢,😡',
+            'reaction' => 'required|string',
         ]);
 
         $message = ChMessage::find($request->message_id);
@@ -34,7 +34,7 @@ class MessageReactionController extends Controller
     {
         $request->validate([
             'message_id' => 'required',
-            'reaction' => 'required|string|in:👍,❤️,😂,😮,😢,😡',
+            'reaction' => 'required|string',
         ]);
 
         $message = ChatGroupMessage::find($request->message_id);

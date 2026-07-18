@@ -10,7 +10,9 @@ var messenger,
   defaultAvatarInSettings = null,
   messengerColor,
   dark_mode,
-  messages_page = 1;
+  messages_page = 1,
+  mentionTimeout,
+  currentMentionQuery = '';
 
 const messagesContainer = $(".messenger-messagingView .m-body"),
   messengerTitleDefault = $(".messenger-headTitle").text(),
@@ -2027,20 +2029,98 @@ function playNotificationSound(soundName, condition = false) {
  * Update and format dates to time ago.
  *-------------------------------------------------------------
  */
+
+// ============================================
+// DATE TO TIME AGO - FIXED
+// ============================================
+function dateStringToTimeAgo(dateString) {
+  // 🔥 If no date, return "Just now"
+  if (!dateString) {
+    return 'Just now';
+  }
+
+  // 🔥 Parse the date
+  let date = new Date(dateString);
+
+  // 🔥 If date is invalid, try different format
+  if (isNaN(date.getTime())) {
+    // Try replacing space with T for ISO format
+    date = new Date(dateString.replace(' ', 'T'));
+    if (isNaN(date.getTime())) {
+      // Still invalid, return "Just now"
+      return 'Just now';
+    }
+  }
+
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+
+  // 🔥 Check if diff is valid
+  if (isNaN(diffInSeconds) || diffInSeconds < 0) {
+    return 'Just now';
+  }
+
+  // 🔥 Calculate time ago
+  if (diffInSeconds < 5) {
+    return 'Just now';
+  }
+
+  if (diffInSeconds < 60) {
+    return Math.floor(diffInSeconds) + 's';
+  }
+
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) {
+    return diffInMinutes + 'm';
+  }
+
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) {
+    return diffInHours + 'h';
+  }
+
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) {
+    return diffInDays + 'd';
+  }
+
+  // More than a week - show date
+  return date.toLocaleDateString();
+}
 function updateElementsDateToTimeAgo() {
   $(".message-time").each(function () {
+    // 🔥 Get the data-time attribute
     const time = $(this).attr("data-time");
-    $(this).find(".time").text(dateStringToTimeAgo(time));
+    console.log('🔍 Message time attribute:', time);
+
+    if (time) {
+      const result = dateStringToTimeAgo(time);
+      console.log('📝 Result:', result);
+
+      // 🔥 Only update the text, don't change the attribute
+      $(this).find(".time").text(result);
+    } else {
+      console.log('⚠️ No data-time attribute found on:', this);
+    }
   });
+
   $(".contact-item-time").each(function () {
+    //  Get the data-time attribute
     const time = $(this).attr("data-time");
-    $(this).text(dateStringToTimeAgo(time));
+
+    if (time) {
+      const result = dateStringToTimeAgo(time);
+      //  Update the text, keep the attribute
+      $(this).text(result);
+    }
   });
 }
+
+// 🔥 Call immediately and then every 60 seconds
+updateElementsDateToTimeAgo();
 setInterval(() => {
   updateElementsDateToTimeAgo();
 }, 60000);
-
 
 // ============================================
 // GROUP MESSAGE HANDLER - FINAL FIXED
@@ -2118,14 +2198,20 @@ function handleGroupMessage(data) {
   // ============================================
   // 1. UPDATE SIDEBAR - ALWAYS
   // ============================================
+  console.log('🔍 Searching for group in sidebar with ID:', groupId);
+
   var groupItem = $(`.group-item[data-group-id="${groupId}"]`);
+
+  console.log('🔍 Group item found:', groupItem.length > 0 ? 'YES' : 'NO');
 
   if (groupItem.length) {
     console.log('✅ Group found in sidebar');
 
     // 🔥 Check if we're viewing THIS group
-    var isViewingThisGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
-
+    var isCurrentlyViewingThisGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
+    console.log('👁️ Currently viewing this group?', isCurrentlyViewingThisGroup);
+    console.log('📊 Current Group ID:', window.groupState.currentGroupId);
+    console.log('📊 isGroupChat:', window.groupState.isGroupChat);
 
     // Update last message preview (ALWAYS)
     var senderName = messageData.sender ? messageData.sender.name : 'Someone';
@@ -2133,36 +2219,104 @@ function handleGroupMessage(data) {
     var preview = senderName + ': ' + messageText;
     if (preview.length > 40) preview = preview.substring(0, 40) + '...';
 
+    console.log('📝 Updating preview to:', preview);
     groupItem.find('td:last-child span').text(preview);
     groupItem.find('.contact-item-time').text('Just now');
 
-    // 🔥 UPDATE UNREAD BADGE - ONLY IF NOT VIEWING THIS GROUP
-    if (!isViewingThisGroup) {
+    if (!isCurrentlyViewingThisGroup) {
+      // ✅ NOT viewing this group - add/update badge
+      console.log('🔔 NOT viewing this group, adding/updating badge');
+
       var badge = groupItem.find('.contact-item-unread');
       var avatar = groupItem.find('.avatar');
 
       if (badge.length) {
         var count = parseInt(badge.text()) + 1;
         badge.text(count);
+        badge.show(); // 🔥 FIX: Make sure it's visible
+        console.log('🔔 Updated unread count for group:', groupId, 'New count:', count);
       } else if (avatar.length) {
         avatar.append('<span class="contact-item-unread">1</span>');
+        console.log('🔔 Added new unread badge for group:', groupId);
       } else {
-        // Fallback
         groupItem.find('td:first-child').append('<span class="contact-item-unread">1</span>');
+        console.log('🔔 Added badge to td:first-child for group:', groupId);
       }
     } else {
-      console.log('👁️ Viewing this group, not adding badge');
+      console.log('👁️ Currently viewing this group, NOT adding badge');
     }
 
     // Move to top (ALWAYS)
     var parent = groupItem.parent();
     if (parent.length) {
       parent.prepend(groupItem);
+      console.log('📌 Moved group to top of sidebar');
     }
   } else {
+    console.log('⚠️ Group NOT found in sidebar! Group ID:', groupId);
+    console.log('🔄 Attempting to reload groups...');
+
     // Try to reload groups
     if (typeof loadGroups === 'function') {
       loadGroups();
+      console.log('🔄 loadGroups() function called');
+
+      // Try again after groups are loaded
+      setTimeout(function () {
+        console.log('⏰ Retrying to find group after reload...');
+        var groupItemReloaded = $(`.group-item[data-group-id="${groupId}"]`);
+
+        if (groupItemReloaded.length) {
+          console.log('✅ Group found AFTER reload! Group ID:', groupId);
+
+          // Update last message preview
+          var senderName = messageData.sender ? messageData.sender.name : 'Someone';
+          var messageText = messageData.message || 'New message';
+          var preview = senderName + ': ' + messageText;
+          if (preview.length > 40) preview = preview.substring(0, 40) + '...';
+
+          console.log('📝 Updating preview after reload to:', preview);
+          groupItemReloaded.find('td:last-child span').text(preview);
+          groupItemReloaded.find('.contact-item-time').text('Just now');
+
+          // Add unread badge
+          var isCurrentlyViewingThisGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
+          console.log('👁️ Currently viewing this group (after reload)?', isCurrentlyViewingThisGroup);
+
+          if (!isCurrentlyViewingThisGroup) {
+            console.log('🔔 NOT viewing this group (after reload), adding badge');
+
+            var badge = groupItemReloaded.find('.contact-item-unread');
+            var avatar = groupItemReloaded.find('.avatar');
+
+            if (badge.length) {
+              var count = parseInt(badge.text()) + 1;
+              badge.text(count);
+              badge.show(); // 🔥 FIX: Make sure it's visible
+              console.log('🔔 Updated unread count for group (after reload):', groupId, 'New count:', count);
+            } else if (avatar.length) {
+              avatar.append('<span class="contact-item-unread">1</span>');
+              console.log('🔔 Added new unread badge for group (after reload):', groupId);
+            } else {
+              groupItemReloaded.find('td:first-child').append('<span class="contact-item-unread">1</span>');
+              console.log('🔔 Added badge to td:first-child (after reload) for group:', groupId);
+            }
+          } else {
+            console.log('👁️ Currently viewing this group (after reload), NOT adding badge');
+          }
+
+          // Move to top
+          var parent = groupItemReloaded.parent();
+          if (parent.length) {
+            parent.prepend(groupItemReloaded);
+            console.log('📌 Moved group to top of sidebar (after reload)');
+          }
+        } else {
+          console.log('❌ Group STILL NOT found after reload! Group ID:', groupId);
+        }
+      }, 800);
+    } else {
+      console.log('❌ loadGroups function is not available!');
     }
   }
 
@@ -2238,15 +2392,28 @@ function handleGroupMessage(data) {
     `;
   }
 
+  // In handleGroupMessage function, find this part where messages are displayed:
+
   $('.messages').append(`
-    <div class="message-card mc-receiver" data-message-id="${messageData.id}">
+    <div class="message-card mc-receiver" data-message-id="${messageData.id}" data-id="${messageData.id}" data-type="group">
         <div class="message">
             <div class="message-user" style="font-size:11px;font-weight:600;color:#636e72;margin-bottom:2px;display:flex;justify-content:space-between;">
                 <span>${displayName}</span>
-                <span style="font-size:10px;font-weight:400;color:#b2bec3;">${timeDisplay}</span>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:10px;font-weight:400;color:#b2bec3;">${timeDisplay}</span>
+                    <!-- 🔥 REPLY BUTTON FOR RECEIVER -->
+                    <button class="reply-btn" 
+                            data-message-id="${messageData.id}" 
+                            data-sender-name="${displayName}"
+                            data-message-text="${messageData.message || ''}"
+                            style="background:none; border:none; color:#b2bec3; cursor:pointer; font-size:12px; padding:2px 6px; border-radius:4px; transition:all 0.2s;">
+                        <i class="fas fa-reply"></i>
+                    </button>
+                </div>
             </div>
-            ${replyHtml}  <!-- 🔥 ADD THIS LINE -->
+            ${replyHtml}
             ${msgHtml}
+            <div class="message-reactions" style="display:flex; gap:3px; margin-top:4px; flex-wrap:wrap;"></div>
         </div>
     </div>
 `);
@@ -2294,22 +2461,109 @@ console.log('✅ Group handler ready!');
     chip.remove();
   });
 
+  // ============================================
+  // TOGGLE GROUP TYPE
+  // ============================================
+  $(document).on('change', '#group_type', function () {
+    if ($(this).val() === 'public') {
+      // Hide member selection for public groups
+      $('#member-selection-area').hide();
+      $('#public-group-info').show();
+      $('#group-user-search').val('');
+      $('#group-search-results').html('');
+      $('#selected-members').html('');
+    } else {
+      // Show member selection for private groups
+      $('#member-selection-area').show();
+      $('#public-group-info').hide();
+    }
+  });
+
 
   // ============================================
   // CREATE GROUP
   // ============================================
+  // $(document).on('click', '#save-group', function () {
+  //   let groupName = $('#group_name').val().trim();
+  //    let groupType = $('#group_type').val(); 
+  //   if (!groupName) return alert('Enter group name');
+  //      // For private groups, check if members are selected
+  //   if (groupType === 'private' && selectedMembers.length === 0) {
+  //       return alert('Select at least one member');
+  //   }
+  //   if (selectedMembers.length === 0) return alert('Select members');
+  //   let formData = new FormData();
+  //   formData.append('name', groupName);
+  //    formData.append('type', groupType); // 
+  //   let image = $('#group_image')[0].files[0];
+  //   if (image) formData.append('image', image);
+  //   selectedMembers.forEach(id => {
+  //     formData.append('members[]', id);
+  //   });
+  //   formData.append('_token', $('meta[name="csrf-token"]').attr('content'));
+  //   $.ajax({
+  //     url: '/groups/store',
+  //     type: 'POST',
+  //     data: formData,
+  //     processData: false,
+  //     contentType: false,
+  //     success: function (response) {
+  //       loadGroups();
+  //       // 🔥 SUBSCRIBE TO THE NEW GROUP CHANNEL
+  //       let groupId = response.group_id;
+  //       if (groupId) {
+  //         console.log('📡 Subscribing to new group.' + groupId);
+  //         let channel = pusher.subscribe('group.' + groupId);
+  //         channel.bind('App\\Events\\GroupMessageSent', function (data) {
+  //           console.log('📨 Message on new group.' + groupId, data);
+  //           if (typeof handleGroupMessage === 'function') {
+  //             handleGroupMessage(data);
+  //           }
+  //         });
+  //         if (typeof window.groupChannels === 'undefined') {
+  //           window.groupChannels = {};
+  //         }
+  //         window.groupChannels[groupId] = channel;
+  //       }
+  //       selectedMembers = [];
+  //       $('#group_name').val('');
+  //       $('#group_image').val('');
+  //       $('#selected-members').html('');
+  //       $('.app-modal[data-name="create-group"]').fadeOut(200);
+  //     }
+  //   });
+  // });
+
   $(document).on('click', '#save-group', function () {
     let groupName = $('#group_name').val().trim();
+    let groupType = $('#group_type').val(); // 🔥 Get group type
+
     if (!groupName) return alert('Enter group name');
-    if (selectedMembers.length === 0) return alert('Select members');
+
+    // 🔥 Only check members for PRIVATE groups
+    if (groupType === 'private' && selectedMembers.length === 0) {
+      return alert('Select at least one member');
+    }
+
+    // 🔥 REMOVE THIS LINE - It's causing the conflict
+    // if (selectedMembers.length === 0) return alert('Select members');
+
     let formData = new FormData();
     formData.append('name', groupName);
+    formData.append('type', groupType);
+
     let image = $('#group_image')[0].files[0];
     if (image) formData.append('image', image);
-    selectedMembers.forEach(id => {
-      formData.append('members[]', id);
-    });
+
+    // 🔥 Only add members for private groups
+    if (groupType === 'private') {
+      selectedMembers.forEach(id => {
+        formData.append('members[]', id);
+      });
+    }
+
     formData.append('_token', $('meta[name="csrf-token"]').attr('content'));
+
     $.ajax({
       url: '/groups/store',
       type: 'POST',
@@ -2318,7 +2572,7 @@ console.log('✅ Group handler ready!');
       contentType: false,
       success: function (response) {
         loadGroups();
-        // 🔥 SUBSCRIBE TO THE NEW GROUP CHANNEL
+
         let groupId = response.group_id;
         if (groupId) {
           console.log('📡 Subscribing to new group.' + groupId);
@@ -2334,11 +2588,17 @@ console.log('✅ Group handler ready!');
           }
           window.groupChannels[groupId] = channel;
         }
+
         selectedMembers = [];
         $('#group_name').val('');
         $('#group_image').val('');
         $('#selected-members').html('');
+        $('#group_type').val('private'); // Reset to private
         $('.app-modal[data-name="create-group"]').fadeOut(200);
+      },
+      error: function (xhr) {
+        let error = xhr.responseJSON?.error || 'Failed to create group';
+        alert('❌ ' + error);
       }
     });
   });
@@ -2386,10 +2646,10 @@ console.log('✅ Group handler ready!');
     window.groupState.currentGroupId = null;
     window.groupState.activeTab = 'private';
 
-    if (window.groupChannel) {
-      window.groupChannel.unsubscribe();
-      window.groupChannel = null;
-    }
+    // if (window.groupChannel) {
+    //   window.groupChannel.unsubscribe();
+    //   window.groupChannel = null;
+    // }
 
     enableGroupMessageInput();
 
@@ -2407,6 +2667,11 @@ console.log('✅ Group handler ready!');
   // ============================================
   function enableGroupMessageInput() {
     console.log('🔓 Enabling message input');
+
+    // Remove read-only message
+    $('.read-only-message').remove();
+
+    // Show send card
     $('.messenger-sendCard').show();
     messageInput.removeAttr('readonly');
     $('#message-form button').removeAttr('disabled');
@@ -2415,6 +2680,24 @@ console.log('✅ Group handler ready!');
     setTimeout(function () {
       messageInput.focus();
     }, 300);
+  }
+
+  function disableGroupMessageInput() {
+    console.log('🔒 Disabling message input (read-only group)');
+
+    // Hide send card
+    $('.messenger-sendCard').hide();
+
+    // Remove existing read-only message
+    $('.read-only-message').remove();
+
+    // Show read-only message
+    $('.messenger-messagingView').append(`
+        <div class="read-only-message" style="padding:20px; text-align:center; background:#f8f9fa; border-bottom:1px solid #e9ecef; color:#6c757d; font-size:14px;">
+            <i class="fas fa-lock" style="margin-right:8px; color:#667eea;"></i>
+            This is a public group. Only Admins and Managers can send announcements.
+        </div>
+    `);
   }
 
   // ============================================
@@ -2542,7 +2825,9 @@ console.log('✅ Group handler ready!');
         }
 
         let timeDisplay = '';
+        let originalTime = '';
         if (group.last_message_time) {
+          originalTime = group.last_message_time;
           const past = new Date(group.last_message_time);
           const now = new Date();
           const diff = Math.floor((now - past) / 1000);
@@ -2558,15 +2843,15 @@ console.log('✅ Group handler ready!');
                 <div class="messenger-list-item group-item" data-contact="${group.id}" data-group-id="${group.id}">
                     <table width="100%">
                         <tr>
-                            <td style="position: relative; width: 60px;">
-                                <div class="avatar av-m" style="background-image: url('${image}');">
-                                    ${unreadCount > 0 ? `<span class="contact-item-unread">${unreadCount}</span>` : ''}
-                                </div>
-                            </td>
+                            <td style="position: relative; width: 80px;">
+                              <div class="avatar av-m" style="background-image: url('${image}');"></div>
+                              <!-- 🔥 BADGE IS NOW OUTSIDE THE AVATAR -->
+                              ${unreadCount > 0 ? `<span class="contact-item-unread">${unreadCount}</span>` : ''}
+                          </td>
                             <td>
                                 <p data-id="${group.id}" data-type="group">
-                                    ${group.name}
-                                    <span class="contact-item-time">${timeDisplay}</span>
+                                    ${group.name.replace(/\b\w/g, l => l.toUpperCase())}
+                                     <span class="contact-item-time" data-time="${originalTime}">${timeDisplay}</span>
                                 </p>
                                 <span>${lastMessage}</span>
                             </td>
@@ -2626,8 +2911,8 @@ console.log('✅ Group handler ready!');
     loadGroupMessages(groupId);
 
     if (window.groupChannel) {
-      window.groupChannel.unsubscribe();
-      window.groupChannel = null;
+      // Keep the existing channel, but also subscribe to the new one
+      console.log('📡 Already subscribed to a group, adding new one too');
     }
 
     window.groupChannel = pusher.subscribe('group.' + groupId);
@@ -2666,9 +2951,6 @@ console.log('✅ Group handler ready!');
 
 
 
-  // ============================================
-  // LOAD GROUP MESSAGES
-  // ============================================
 
   // ============================================
   // LOAD GROUP MESSAGES WITH "LOAD MORE" BUTTON - FIXED
@@ -2956,121 +3238,7 @@ console.log('✅ Group handler ready!');
 
   console.log('✅ Load More button with scroll detection initialized!');
 
-  // ============================================
-  // SEND GROUP MESSAGE WITH ATTACHMENT
-  // ============================================
-  //   window.sendGroupMessage = function () {
-  //     let text = $.trim(messageInput.val());
-  //     let currentGroupId = window.groupState.currentGroupId || window.currentGroupIdForMembers;
-  //     let hasFile = !!$(".upload-attachment").val();
 
-  //     if ((!text && !hasFile) || !currentGroupId) {
-  //       console.log('⏭️ No message or attachment to send');
-  //       return false;
-  //     }
-
-  //     console.log('📤 Sending group message to group:', currentGroupId);
-
-  //     // Create form data for file upload
-  //     let formData = new FormData();
-  //     formData.append('group_id', currentGroupId);
-  //     formData.append('message', text || '');
-  //     formData.append('_token', csrfToken);
-
-  //     // Add file if exists
-  //     let fileInput = $(".upload-attachment")[0];
-  //     let filePreviewHtml = '';
-
-  //     if (fileInput && fileInput.files && fileInput.files[0]) {
-  //       formData.append('attachment', fileInput.files[0]);
-  //       let fileName = fileInput.files[0].name;
-  //       let fileType = fileInput.files[0].type;
-
-  //       if (fileType.startsWith('image/')) {
-  //         let reader = new FileReader();
-  //         reader.onload = function (e) {
-  //           filePreviewHtml = '<div class="chat-image" style="background-image: url(' + e.target.result + '); width:200px; height:200px; background-size:cover; background-position:center; border-radius:8px; margin-top:5px;"></div>';
-  //           appendMessageWithPreview(text, filePreviewHtml);
-  //         };
-  //         reader.readAsDataURL(fileInput.files[0]);
-  //       } else {
-  //         filePreviewHtml = '<div class="file-attachment" style="padding:8px 12px; background:#f1f2f6; border-radius:6px; margin-top:5px; display:inline-block;"><i class="fas fa-paperclip"></i> ' + fileName + '</div>';
-  //         appendMessageWithPreview(text, filePreviewHtml);
-  //       }
-  //     } else {
-  //       appendMessageWithPreview(text, '');
-  //     }
-
-  //     function appendMessageWithPreview(messageText, previewHtml) {
-  //       let messageHtml = messageText || '';
-  //       if (previewHtml) {
-  //         messageHtml += previewHtml;
-  //       }
-
-  //       let now = new Date();
-  //       let timeDisplay = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-  //       // Check for date divider
-  //       let shouldAddDivider = false;
-  //       let lastMessageDate = window._lastMessageDate || null;
-  //       let currentDate = now.toDateString();
-
-  //       if (lastMessageDate !== currentDate) {
-  //         shouldAddDivider = true;
-  //         window._lastMessageDate = currentDate;
-  //       }
-
-  //       if (shouldAddDivider) {
-  //         $('.messages').append(`
-  //         <div class="date-divider">
-  //             <span>Today</span>
-  //         </div>
-  //     `);
-  //       }
-
-  //       $('.messages').append(`
-  //     <div class="message-card mc-sender">
-  //         <div class="message">
-  //             <div class="message-user" style="font-size:11px; font-weight:600; color:#636e72; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
-  //                 <span>You</span>
-  //                 <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">${timeDisplay}</span>
-  //             </div>
-  //             <div class="message-text">${messageHtml}</div>
-  //         </div>
-  //     </div>
-  // `);
-
-  //       messageInput.val('');
-  //       $(".upload-attachment").val('');
-  //       $(".attachment-preview").remove();
-  //       scrollToBottom(messagesContainer);
-  //     }
-
-  //     // In your sendGroupMessage function
-  //     console.log('📤 AJAX sending to:', '/groups/send-message');
-  //     console.log('📤 Data:', {
-  //       group_id: currentGroupId,
-  //       message: text
-  //     });
-
-  //     $.ajax({
-  //       url: '/groups/send-message',
-  //       type: 'POST',
-  //       data: formData,
-  //       processData: false,
-  //       contentType: false,
-  //       success: function (response) {
-  //         console.log('✅ Group message sent:', response);
-  //       },
-  //       error: function (xhr) {
-  //         console.error('❌ Failed to send group message:', xhr);
-  //         $('.messages .mc-sender:last').remove();
-  //         alert('Failed to send message. Please try again.');
-  //       }
-  //     });
-
-  //     return false;
-  //   };
 
   window.sendGroupMessage = function () {
     let text = $.trim(messageInput.val());
@@ -3083,6 +3251,8 @@ console.log('✅ Group handler ready!');
     }
 
     console.log('📤 Sending group message to group:', currentGroupId);
+    // 🔥🔥🔥 ADD THIS - CLEAR MENTIONS BEFORE SENDING
+
 
     // Create form data
     let formData = new FormData();
@@ -3093,6 +3263,20 @@ console.log('✅ Group handler ready!');
     // 🔥 THIS IS THE IMPORTANT PART - Add reply ID if replying
     if (replyToMessageId) {
       formData.append('reply_to_id', replyToMessageId);
+    }
+
+    // 🔥🔥🔥 ADD THIS - SEND MENTIONED USER IDs TO BACKEND
+    if (window.mentionedUsers && window.mentionedUsers.length > 0) {
+      // Send user IDs as JSON
+      const userIds = window.mentionedUsers.map(function (u) { return u.id; });
+      formData.append('mentioned_user_ids', JSON.stringify(userIds));
+      console.log('📤 Mentioned user IDs:', userIds);
+    }
+
+    // 🔥🔥🔥 ADD THIS - SEND @ALL FLAG
+    if (window.mentionAll) {
+      formData.append('mention_all', 'true');
+      console.log('📤 @all mentioned');
     }
 
     // Add file if exists
@@ -3173,6 +3357,8 @@ console.log('✅ Group handler ready!');
       contentType: false,
       success: function (response) {
         console.log('✅ Group message sent:', response);
+        window.mentionedUsers = [];
+        window.mentionAll = false;
 
         // 🔥 Replace the temporary message with the real one from server
         if (response.message) {
@@ -3336,12 +3522,42 @@ function loadGroupInfo(groupId) {
       $('#group-info-name').text(group.name);
       $('#group-info-member-count').text(response.members.length + ' members');
 
+      // ============================================
+      //  ADD THIS BACK - PUBLIC GROUP CHECK
+      // ============================================
+
+      // ✅ Check if group type exists, default to 'private'
+      let groupType = group.type || 'private';
+      console.log('🔍 Group Type:', groupType);
+
+      //  CHECK IF USER CAN SEND MESSAGES
+      let isPublic = groupType === 'public';
+      let canSend = true;
+
+      if (isPublic) {
+        // Only Super Admin, Admin, Manager can send in public groups
+        canSend = window.currentUser.isSuperAdmin ||
+          window.currentUser.isAdmin ||
+          window.currentUser.isManager;
+
+      }
+
+      // messenger-list-item SHOW OR HIDE SEND CARD
+      if (canSend) {
+        showSendCard();
+      } else {
+        hideSendCard();
+      }
+
+
       if (response.is_admin || response.is_creator) {
         $('#group-admin-actions').show();
         $('#admin-action-labels').show();
+        $('.show-group-members').show();
       } else {
         $('#group-admin-actions').hide();
         $('#admin-action-labels').hide();
+        $('.show-group-members').hide();
       }
 
       $('#sidebar-group-avatar').css('background-image', 'url(' + image + ')');
@@ -3356,6 +3572,49 @@ function loadGroupInfo(groupId) {
       console.error('❌ Failed to load group info:', error);
     });
 }
+
+// ============================================
+// SHOW SEND CARD
+// ============================================
+function showSendCard() {
+  console.log('🔓 Showing send card');
+
+  // Remove read-only message
+  $('.read-only-message').remove();
+
+  // Show the send card
+  $('.messenger-sendCard').show();
+  messageInput.removeAttr('readonly');
+  $('#message-form button').removeAttr('disabled');
+  $('.upload-attachment').removeAttr('disabled');
+  messagesContainer.css('opacity', '1');
+  setTimeout(function () {
+    messageInput.focus();
+  }, 300);
+}
+
+// ============================================
+// HIDE SEND CARD - FOR PUBLIC GROUPS
+// ============================================
+function hideSendCard() {
+  console.log('🔒 Hiding send card (read-only group)');
+
+  // Hide the send card
+  $('.messenger-sendCard').hide();
+
+  // Remove existing read-only message
+  $('.read-only-message').remove();
+
+  // Show read-only message
+  $('.messenger-messagingView').append(`
+        <div class="read-only-message" style="padding:20px; text-align:center; background:#f8f9fa; border-bottom:1px solid #e9ecef; color:#6c757d; font-size:14px;">
+            <i class="fas fa-lock" style="margin-right:8px; color:#667eea;"></i>
+            This is a public group. Only Admins and Managers can send announcements.
+        </div>
+    `);
+}
+
+
 
 // ============================================
 // RENDER MEMBERS LIST
@@ -4577,16 +4836,16 @@ window.loadGroupMessages = function (groupId, loadMore = false) {
     console.log('📊 No more messages:', groupNoMoreMessages);
     console.log('📊 Next page:', groupMessagesPage);
 
-   
+
     // Scroll to bottom only on first load
-if (!loadMore) {
-    setTimeout(function() {
+    if (!loadMore) {
+      setTimeout(function () {
         // 🔥 Use Chatify's scroll function
         messagesContainer.stop().animate({
-            scrollTop: messagesContainer[0].scrollHeight
+          scrollTop: messagesContainer[0].scrollHeight
         }, 300);
-    }, 300);
-}
+      }, 300);
+    }
 
     isLoadingMore = false;
 
@@ -4675,3 +4934,380 @@ $(document).ready(function () {
 });
 
 console.log('✅ Pagination/Infinite scroll initialized!');
+
+
+// ============================================
+// DETECT @ IN MESSAGE INPUT
+// ============================================
+
+$(document).on('input', '#message-form .m-send', function () {
+  const text = $(this).val();
+  const cursorPos = this.selectionStart;
+
+  // Find @ symbol
+  const atIndex = text.lastIndexOf('@', cursorPos);
+  if (atIndex !== -1) {
+    const query = text.substring(atIndex + 1, cursorPos);
+    // If no space after @ and not empty
+    if (!query.includes(' ') && query.length >= 0) {
+      currentMentionQuery = query;
+      showMentionSuggestions(query);
+      return;
+    }
+  }
+  hideMentionSuggestions();
+});
+
+// ============================================
+// SHOW MENTION SUGGESTIONS
+// ============================================
+
+function showMentionSuggestions(query) {
+  clearTimeout(mentionTimeout);
+
+  mentionTimeout = setTimeout(function () {
+    const isGroup = window.groupState?.isGroupChat || false;
+    const groupId = window.groupState?.currentGroupId;
+
+    if (!isGroup || !groupId) {
+      // 🔥 For private chat - get the other user
+      const otherUserId = getMessengerId();
+      if (otherUserId) {
+        $.ajax({
+          url: `/users/${otherUserId}`,
+          type: 'GET',
+          success: function (user) {
+            let users = [user];
+            if (query) {
+              users = users.filter(function (u) {
+                return u.name.toLowerCase().includes(query.toLowerCase());
+              });
+            }
+            renderMentionSuggestions(users, query);
+          },
+          error: function () {
+            console.error('Failed to fetch user');
+          }
+        });
+      }
+      return;
+    }
+
+    // 🔥 GET GROUP MEMBERS
+    $.ajax({
+      url: `/groups/${groupId}/members`,
+      type: 'GET',
+      success: function (response) {
+        let users = response.members.map(function (member) {
+          return {
+            id: member.id,
+            name: member.name,
+            email: member.email || '',
+            avatar: member.avatar || null
+          };
+        });
+
+        // 🔥 FILTER by query
+        if (query) {
+          users = users.filter(function (user) {
+            return user.name.toLowerCase().includes(query.toLowerCase()) ||
+              user.email.toLowerCase().includes(query.toLowerCase());
+          });
+        }
+
+        renderMentionSuggestions(users, query);
+      },
+      error: function () {
+        console.error('Failed to fetch users');
+      }
+    });
+  }, 300);
+}
+
+// ============================================
+// RENDER MENTION SUGGESTIONS - WITH USER IDs
+// ============================================
+
+// ============================================
+// RENDER MENTION SUGGESTIONS - WITH USER IDs
+// ============================================
+
+function renderMentionSuggestions(users, query) {
+  console.log('🔥 renderMentionSuggestions CALLED');
+  console.log('users:', users);
+  console.log('query:', query);
+
+  // Remove old suggestions
+  $('#mention-suggestions').remove();
+
+  if (!users || users.length === 0) {
+    if (query && query.toLowerCase().includes('all')) {
+      showAllMentionOption();
+    }
+    return;
+  }
+
+  let html = `
+        <div id="mention-suggestions" style="position:fixed;bottom:75px;left:20px;background:white;border-radius:10px;box-shadow:0 5px 30px rgba(0,0,0,0.15);border:1px solid #e9ecef;z-index:999999;max-height:220px;overflow-y:auto;min-width:220px;padding:5px 0;">
+    `;
+
+  // 🔥 ADD @ALL OPTION
+  if (query && query.toLowerCase().includes('all')) {
+    html += `
+            <div class="mention-user-item mention-all-item" data-user-id="all" data-user-name="all" style="display:flex;align-items:center;padding:10px 14px;cursor:pointer;transition:background 0.15s;border-bottom:1px solid #f1f2f6;">
+                <div style="width:32px;height:32px;border-radius:50%;background:#667eea;display:flex;align-items:center;justify-content:center;margin-right:10px;color:white;font-size:14px;font-weight:bold;">
+                    📢
+                </div>
+                <div>
+                    <div style="font-size:14px;font-weight:600;color:#667eea;">@all</div>
+                    <div style="font-size:11px;color:#b2bec3;">Mention everyone in this group</div>
+                </div>
+            </div>
+        `;
+  }
+
+  // 🔥 SHOW USERS WITH THEIR IDs
+  users.forEach(function (user) {
+    const avatar = user.avatar ? `/storage/users-avatar/${user.avatar}` : '/images/avatar.png';
+    const highlightedName = user.name.replace(new RegExp(query, 'gi'), function (match) {
+      return '<strong style="color:#667eea;">' + match + '</strong>';
+    });
+
+    html += `
+            <div class="mention-user-item" data-user-id="${user.id}" data-user-name="${user.name}" style="display:flex;align-items:center;padding:8px 14px;cursor:pointer;transition:background 0.15s;">
+                <img src="${avatar}" style="width:32px;height:32px;border-radius:50%;margin-right:10px;object-fit:cover;">
+                <div>
+                    <div style="font-size:13px;font-weight:500;color:#2d3436;">${highlightedName}</div>
+                    <div style="font-size:11px;color:#b2bec3;">${user.email || ''}</div>
+                </div>
+                <div style="margin-left:auto;font-size:10px;color:#b2bec3;">ID: ${user.id}</div>
+            </div>
+        `;
+  });
+
+  html += '</div>';
+  $('body').append(html);
+
+  // 🔥 CLICK - Insert @all
+  $('#mention-suggestions .mention-all-item').on('click', function () {
+    console.log('🔥🔥🔥 @all CLICKED!');
+    insertMentionWithId('all', 'all');
+  });
+
+  // 🔥 CLICK - Insert user with ID
+  $('#mention-suggestions .mention-user-item').on('click', function () {
+    console.log('🔥🔥🔥 USER CLICKED!');
+    const userId = $(this).data('user-id');
+    const userName = $(this).data('user-name');
+    console.log('userId:', userId, 'userName:', userName);
+    insertMentionWithId(userId, userName);
+  });
+}
+
+// ============================================
+// SHOW @ALL OPTION - ADD THIS FUNCTION
+// ============================================
+
+function showAllMentionOption() {
+  console.log('📢 Showing @all option');
+
+  let html = `
+        <div id="mention-suggestions" style="position:fixed;bottom:75px;left:20px;background:white;border-radius:10px;box-shadow:0 5px 30px rgba(0,0,0,0.15);border:1px solid #e9ecef;z-index:999999;min-width:200px;padding:5px 0;">
+            <div class="mention-all-item" style="display:flex;align-items:center;padding:10px 14px;cursor:pointer;transition:background 0.15s;">
+                <div style="width:32px;height:32px;border-radius:50%;background:#667eea;display:flex;align-items:center;justify-content:center;margin-right:10px;color:white;font-size:14px;font-weight:bold;">
+                    📢
+                </div>
+                <div>
+                    <div style="font-size:14px;font-weight:600;color:#667eea;">@all</div>
+                    <div style="font-size:11px;color:#b2bec3;">Mention everyone in this group</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+  $('body').append(html);
+
+  // 🔥🔥🔥 THIS MUST CALL insertMentionWithId('all', 'all')
+  $('#mention-suggestions .mention-all-item').on('click', function () {
+    console.log('🔥🔥🔥 @all CLICKED from showAllMentionOption!');
+    insertMentionWithId('all', 'all');  // 🔥 THIS IS CORRECT
+  });
+}
+
+// ============================================
+// INSERT MENTION WITH USER ID
+// ============================================
+function insertMentionWithId(userId, userName) {
+  console.log('🔥🔥🔥 insertMentionWithId CALLED!');
+  console.log('userId:', userId);
+  console.log('userName:', userName);
+
+  // 🔥 MAKE SURE window.mentionedUsers EXISTS
+  if (typeof window.mentionedUsers === 'undefined') {
+    window.mentionedUsers = [];
+  }
+
+  const input = messageInput[0];
+  const text = input.value;
+  const cursorPos = input.selectionStart;
+
+  const atIndex = text.lastIndexOf('@', cursorPos);
+  if (atIndex === -1) {
+    console.log('❌ No @ found');
+    return;
+  }
+
+  let insertText;
+
+  // 🔥🔥🔥 FOR @ALL
+  if (userId === 'all') {
+    window.mentionAll = true;  // 🔥 THIS MUST BE SET
+    window.mentionedUsers = [];
+    insertText = '@all ';
+    console.log('📢 @all SET! window.mentionAll =', window.mentionAll);
+  } else {
+    // 🔥 Add user ID to list
+    window.mentionedUsers = window.mentionedUsers.filter(function (u) {
+      return u.id !== userId;
+    });
+    window.mentionedUsers.push({
+      id: userId,
+      name: userName
+    });
+    insertText = '@' + userName + ' ';
+    console.log('👤 USER ADDED! mentionedUsers:', window.mentionedUsers);
+  }
+
+  // Insert into input
+  const newText = text.substring(0, atIndex) + insertText + text.substring(cursorPos);
+  messageInput.val(newText);
+
+  const newCursorPos = atIndex + insertText.length;
+  input.selectionStart = input.selectionEnd = newCursorPos;
+  input.focus();
+
+  hideMentionSuggestions();
+}
+
+// ============================================
+// HIDE MENTION SUGGESTIONS - ADD THIS
+// ============================================
+
+function hideMentionSuggestions() {
+  $('#mention-suggestions').remove();
+  clearTimeout(mentionTimeout);
+}
+
+// ============================================
+// LISTEN FOR MENTION NOTIFICATIONS - SIMPLIFIED
+// ============================================
+
+console.log('🔔 Setting up mention notifications...');
+console.log('👤 User ID:', auth_id);
+
+if (typeof pusher !== 'undefined' && typeof auth_id !== 'undefined') {
+  try {
+    // 🔥 SUBSCRIBE to user channel
+    const userChannel = pusher.subscribe('user.' + auth_id);
+    console.log('📡 Subscribed to user.' + auth_id);
+
+    // 🔥 BIND EVENT
+    userChannel.bind('App\\Events\\MentionEvent', function (data) {
+      console.log('🔔🔔🔔 MENTION EVENT RECEIVED!', data);
+
+      // Show browser notification
+      if (Notification.permission === "granted") {
+        try {
+          const notification = new Notification('🔔 You were mentioned!', {
+            body: data.sender_name + ' mentioned you in ' + data.group_name,
+            icon: '/at-law-logo.webp',
+            tag: 'mention-' + data.message_id,
+            requireInteraction: true,
+          });
+
+          notification.onclick = function () {
+            window.focus();
+            if (data.group_id) {
+              const groupElement = $('.group-item[data-group-id="' + data.group_id + '"]');
+              if (groupElement.length) {
+                groupElement.click();
+              }
+            }
+            notification.close();
+          };
+
+          setTimeout(function () {
+            notification.close();
+          }, 10000);
+
+          console.log('✅ Browser notification shown!');
+        } catch (notifError) {
+          console.error('❌ Error showing notification:', notifError);
+        }
+      }
+
+      // Show in-app toast
+      showMentionToast(data);
+    });
+
+    // 🔥 BIND success event
+    userChannel.bind('pusher:subscription_succeeded', function () {
+      console.log('✅✅✅ Successfully subscribed to user.' + auth_id + ' for mentions!');
+    });
+
+    userChannel.bind('pusher:subscription_error', function (error) {
+      console.error('❌ Failed to subscribe to user channel:', error);
+    });
+
+  } catch (error) {
+    console.error('❌ Error setting up mention listener:', error);
+  }
+} else {
+  console.warn('⚠️ Pusher or auth_id not available');
+}
+// ============================================
+// SHOW MENTION TOAST
+// ============================================
+
+function showMentionToast(data) {
+  const toastId = 'mention-toast-' + Date.now();
+  const isAllMention = data.is_all_mention || false;
+  const icon = isAllMention ? '📢' : '🔔';
+  const mentionText = isAllMention ? 'mentioned everyone' : 'mentioned you';
+
+  const toastHtml = `
+        <div id="${toastId}" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2d3436;color:white;padding:12px 20px;border-radius:8px;z-index:999999;font-size:14px;box-shadow:0 4px 15px rgba(0,0,0,0.2);animation:slideUp 0.3s ease;max-width:400px;width:90%;cursor:pointer;border-left:4px solid ${isAllMention ? '#fdcb6e' : '#667eea'};">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:20px;">${icon}</span>
+                <div>
+                    <strong style="color:${isAllMention ? '#fdcb6e' : '#667eea'};">${data.sender_name}</strong> ${mentionText} in <strong>${data.group_name}</strong>
+                    <div style="font-size:12px;color:#b2bec3;margin-top:2px;">${data.message_text}</div>
+                </div>
+            </div>
+        </div>
+        <style>
+            @keyframes slideUp {
+                from { transform: translateX(-50%) translateY(30px); opacity: 0; }
+                to { transform: translateX(-50%) translateY(0); opacity: 1; }
+            }
+        </style>
+    `;
+
+  $('#' + toastId).remove();
+  $('body').append(toastHtml);
+
+  // Click to open chat
+  $('#' + toastId).on('click', function () {
+    const groupElement = $('.group-item[data-group-id="' + data.group_id + '"]');
+    if (groupElement.length) {
+      groupElement.click();
+    }
+    $(this).remove();
+  });
+
+  setTimeout(function () {
+    $('#' + toastId).fadeOut(300, function () {
+      $(this).remove();
+    });
+  }, 6000);
+}

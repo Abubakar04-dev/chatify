@@ -12,6 +12,16 @@
     pusherAuthEndpoint: '{{ route("pusher.auth") }}'
 };
     window.chatify.allAllowedExtensions = chatify.allowedImages.concat(chatify.allowedFiles);
+    
+</script>
+<script>
+    
+    window.currentUser = {
+        role: '{{ auth()->user()->role }}',
+        isSuperAdmin: {{ auth()->user()->isSuperAdmin() ? 'true' : 'false' }},
+        isAdmin: {{ auth()->user()->isAdmin() ? 'true' : 'false' }},
+        isManager: {{ auth()->user()->isManager() ? 'true' : 'false' }}
+    };
 </script>
 <script src="{{ asset('js/chatify/utils.js') }}"></script>
 <script src="{{ asset('js/chatify/code.js') }}"></script>

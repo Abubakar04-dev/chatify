@@ -9,7 +9,8 @@ class ChatGroup extends Model
     protected $fillable = [
         'name',
         'image',
-        'created_by'
+        'created_by',
+        'type',
     ];
 
     public function creator()

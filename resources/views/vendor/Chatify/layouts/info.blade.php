@@ -33,6 +33,7 @@
     <p id="group-info-member-count" style="text-align:center; color:#b2bec3; font-size:11px; margin-bottom:12px;">0 members</p>
 
     <div style="display:flex; justify-content:center; gap:6px; padding:0 15px;">
+      
         <button class="group-action-btn show-group-members" title="View Members" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; cursor:pointer; font-size:14px;">
             <i class="fas fa-users"></i>
         </button>
@@ -46,9 +47,9 @@
             </button>
         </div>
 
-        <button class="group-action-btn leave-group-btn" title="Leave Group" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; background:#fce4ec; color:#c62828; border:1px solid #f8bbd0; cursor:pointer; font-size:14px;">
+        {{-- <button class="group-action-btn leave-group-btn" title="Leave Group" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; background:#fce4ec; color:#c62828; border:1px solid #f8bbd0; cursor:pointer; font-size:14px;">
             <i class="fas fa-sign-out-alt"></i>
-        </button>
+        </button> --}}
     </div>
 
     <div style="display:flex; justify-content:center; gap:6px; margin-top:4px; padding:0 15px;">
@@ -57,7 +58,7 @@
             <span style="font-size:9px; color:#b2bec3; text-align:center; width:36px;">Add</span>
             <span style="font-size:9px; color:#b2bec3; text-align:center; width:36px;">Edit</span>
         </div>
-        <span style="font-size:9px; color:#b2bec3; text-align:center; width:36px;">Leave</span>
+        {{-- <span style="font-size:9px; color:#b2bec3; text-align:center; width:36px;">Leave</span> --}}
     </div>
 </div>
 

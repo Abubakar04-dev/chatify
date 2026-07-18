@@ -9,15 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->enum('role', ['super_admin', 'admin', 'manager', 'it', 'agent'])->default('user')->after('email');
-            $table->enum('status', ['active', 'inactive', 'suspended'])->default('active')->after('role');
+            // 🔥 Add manager_id to track which manager this agent belongs to
+            $table->foreignId('manager_id')->nullable()->after('role')->constrained('users')->nullOnDelete();
         });
     }
 
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['role', 'status']);
+            $table->dropForeign(['manager_id']);
+            $table->dropColumn('manager_id');
         });
     }
 };

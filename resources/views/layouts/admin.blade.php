@@ -616,7 +616,7 @@
         </div>
 
         <div class="nav-links">
-            @if(auth()->user()->role === 'super_admin' || auth()->user()->role === 'admin')
+            @if(auth()->user()->role === 'super_admin' || auth()->user()->role === 'admin' || auth()->user()->role === 'it'|| auth()->user()->role === 'manager')
             <a href="{{ route('admin.users.index') }}" class="{{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
                 <i class="fas fa-users"></i>
                 <span>Users</span>

@@ -7,10 +7,13 @@
             <nav>
                 <a href="#"><i class="fas fa-inbox"></i> <span class="messenger-headTitle">MESSAGES</span> </a>
                 {{-- header buttons --}}
+
                 <nav class="m-header-right">
-                    <a href="#" id="create-group-btn" title="Create Group">
-                        <i class="fas fa-users"></i>
-                    </a>
+                    @if (auth()->user()->isSuperAdmin() || auth()->user()->isAdmin() || auth()->user()->isManager())
+                        <a href="#" id="create-group-btn" title="Create Group">
+                            <i class="fas fa-users"></i>
+                        </a>
+                    @endif
                     <a href="#"><i class="fas fa-cog settings-btn"></i></a>
                     <a href="#" class="listView-x"><i class="fas fa-times"></i></a>
                 </nav>
@@ -62,7 +65,8 @@
                 {{-- header back button, avatar and user name --}}
                 <div class="chatify-d-flex chatify-justify-content-between chatify-align-items-center">
                     <a href="#" class="show-listView"><i class="fas fa-arrow-left"></i></a>
-                    <div class="avatar av-s header-avatar" style="margin: 0px 10px; margin-top: -5px; margin-bottom: -5px;">
+                    <div class="avatar av-s header-avatar"
+                        style="margin: 0px 10px; margin-top: -5px; margin-bottom: -5px;">
                     </div>
                     <a href="#" class="user-name">{{ config('chatify.name') }}</a>
                 </div>
@@ -74,7 +78,8 @@
                     {{-- ✅ ADD BELL ICON HERE --}}
                     <a href="#" id="notification-bell" title="Notification Settings" style="position:relative;">
                         <i class="fas fa-bell"></i>
-                        <span id="notification-status-dot" style="position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;border:2px solid #fff;display:inline-block;"></span>
+                        <span id="notification-status-dot"
+                            style="position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;border:2px solid #fff;display:inline-block;"></span>
                     </a>
                 </nav>
 
@@ -122,20 +127,28 @@
 <!-- ============================================
     REACTION PICKER - TEAMS STYLE
 ============================================ -->
-<div id="reaction-picker" style="display:none; position:fixed; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.12); padding:4px 6px; z-index:999999; border:1px solid #e9ecef;">
+<div id="reaction-picker"
+    style="display:none; position:fixed; background:#fff; border-radius:8px; box-shadow:0 2px 12px rgba(0,0,0,0.12); padding:4px 6px; z-index:999999; border:1px solid #e9ecef;">
     <div style="display:flex; gap:2px;">
-        <button class="reaction-btn" data-reaction="👍" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">👍</button>
-        <button class="reaction-btn" data-reaction="❤️" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">❤️</button>
-        <button class="reaction-btn" data-reaction="😂" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😂</button>
-        <button class="reaction-btn" data-reaction="😮" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😮</button>
-        <button class="reaction-btn" data-reaction="😢" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😢</button>
-        <button class="reaction-btn" data-reaction="😡" style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😡</button>
+        <button class="reaction-btn" data-reaction="👍"
+            style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">👍</button>
+        <button class="reaction-btn" data-reaction="❤️"
+            style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">❤️</button>
+        <button class="reaction-btn" data-reaction="✅"
+            style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">✅</button>
+        <button class="reaction-btn" data-reaction="😮"
+            style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😮</button>
+        <button class="reaction-btn" data-reaction="❌"
+            style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">❌</button>
+        <button class="reaction-btn" data-reaction="😡"
+            style="font-size:18px; border:none; background:transparent; cursor:pointer; padding:2px 5px; border-radius:4px; transition:all 0.15s; line-height:1;">😡</button>
     </div>
 </div>
 <!-- ============================================
     REACTION TOOLTIP
 ============================================ -->
-<div id="reaction-tooltip" style="display:none; position:fixed; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); padding:8px 12px; z-index:999999; border:1px solid #e9ecef; max-width:250px; min-width:120px;">
+<div id="reaction-tooltip"
+    style="display:none; position:fixed; background:#fff; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.15); padding:8px 12px; z-index:999999; border:1px solid #e9ecef; max-width:250px; min-width:120px;">
     <div style="font-size:12px; color:#636e72; margin-bottom:4px; font-weight:500;">
         <span id="reaction-tooltip-emoji"></span>
         <span id="reaction-tooltip-count"></span>

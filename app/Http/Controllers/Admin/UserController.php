@@ -2,26 +2,76 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
+    /**
+     * Get roles based on user's permission
+     */
+    private function getAvailableRoles()
+    {
+        $user = auth()->user();
+
+        if ($user->isSuperAdmin()) {
+            return ['admin', 'manager', 'it', 'agent'];
+        }
+
+        if ($user->isAdmin()) {
+            return ['admin', 'manager', 'it', 'agent'];
+        }
+
+        if ($user->isManager() || $user->isIt()) {
+            return ['agent'];
+        }
+
+        return ['agent'];
+    }
+
+    /**
+     * Get managers list for dropdown (only for creating agents)
+     */
+    private function getAvailableManagers()
+    {
+        $user = auth()->user();
+
+        if ($user->isSuperAdmin() || $user->isAdmin()) {
+            return User::whereIn('role', ['manager', 'it'])->where('status', 'active')->get();
+        }
+
+        if ($user->isManager() || $user->isIt()) {
+            return User::where('id', $user->id)->get();
+        }
+
+        return collect();
+    }
+
     public function index(Request $request)
     {
-        if (!auth()->user()->canManageUsers()) {
+        if (! auth()->user()->canManageUsers()) {
             abort(403, 'Unauthorized');
         }
 
-        $query = User::where('id', '!=', auth()->id())
-            ->where('role', '!=', 'super_admin');
+        $authUser = auth()->user();
 
-        // Filter by role
+        $query = User::visibleToUser($authUser);
+
+        // 🔥 Filter by role
         if ($request->has('role') && $request->role) {
-            $query->where('role', $request->role);
+            $availableRoles = $this->getAvailableRoles();
+            if (in_array($request->role, $availableRoles)) {
+                $query->where('role', $request->role);
+            }
+        }
+
+        // 🔥 Filter by manager (NEW)
+        if ($request->has('manager_id') && $request->manager_id) {
+          
+            $query->where('manager_id', $request->manager_id);
         }
 
         // Filter by status
@@ -32,37 +82,30 @@ class UserController extends Controller
         // Search
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('email', 'LIKE', "%{$search}%");
+                    ->orWhere('email', 'LIKE', "%{$search}%");
             });
         }
 
         $users = $query->orderBy('created_at', 'desc')->paginate(10);
-        
-        // Keep filter values in session for pagination
-        $request->session()->put('admin_filters', [
-            'search' => $request->search,
-            'role' => $request->role,
-            'status' => $request->status,
-        ]);
-        
+
+        // 🔥 Get managers list for filter (NEW)
+        $managers = User::whereIn('role', ['manager'])->where('status', 'active')->get();
+
+        // Stats based on visible users
         $stats = [
-            'total' => User::where('role', '!=', 'super_admin')->count(),
-            'active' => User::where('role', '!=', 'super_admin')->where('status', 'active')->count(),
-            'admins' => User::where('role', 'admin')->count(),
-            'users' => User::where('role', 'user')->count(),
+            'total' => User::visibleToUser($authUser)->count(),
+            'active' => User::visibleToUser($authUser)->where('status', 'active')->count(),
+            'admins' => User::visibleToUser($authUser)->whereIn('role', ['super_admin', 'admin'])->count(),
+            'users' => User::visibleToUser($authUser)->where('role', 'agent')->count(),
         ];
 
         if ($request->ajax()) {
-            // Render the table HTML directly from the index view
-            $html = view('admin.users.index', compact('users', 'stats'))->render();
-            
-            // Extract just the table container part for AJAX updates
-            $dom = new \DOMDocument();
+            $html = view('admin.users.index', compact('users', 'stats', 'managers'))->render();
+            $dom = new \DOMDocument;
             @$dom->loadHTML($html);
-            
-            // Get the table container
+
             $tableContainer = '';
             if ($dom) {
                 $xpath = new \DOMXPath($dom);
@@ -73,12 +116,11 @@ class UserController extends Controller
                     }
                 }
             }
-            
-            // If we couldn't extract it, just return the whole view
+
             if (empty($tableContainer)) {
                 $tableContainer = $html;
             }
-            
+
             return response()->json([
                 'html' => $tableContainer,
                 'pagination' => $users->links()->render(),
@@ -86,33 +128,52 @@ class UserController extends Controller
             ]);
         }
 
-        return view('admin.users.index', compact('users', 'stats'));
+        return view('admin.users.index', compact('users', 'stats', 'managers'));
     }
 
     public function create()
     {
-        if (!auth()->user()->canManageUsers()) {
+        if (! auth()->user()->canManageUsers()) {
             abort(403, 'Unauthorized');
         }
-        return view('admin.users.create');
+
+        $availableRoles = $this->getAvailableRoles();
+        $managers = $this->getAvailableManagers();
+
+        return view('admin.users.create', compact('availableRoles', 'managers'));
     }
 
     public function store(Request $request)
     {
-        if (!auth()->user()->canManageUsers()) {
+
+        if (! auth()->user()->canManageUsers()) {
             abort(403, 'Unauthorized');
         }
+
+        $availableRoles = $this->getAvailableRoles();
 
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role' => ['required', Rule::in(['admin', 'user'])],
-            'status' => ['required', Rule::in(['active', 'inactive', 'suspended'])],
+            'role' => ['required', Rule::in($availableRoles)],
+            'manager_id' => 'nullable|exists:users,id',
         ]);
 
-        if ($request->role === 'admin' && !auth()->user()->isSuperAdmin()) {
-            return back()->with('error', 'Only Super Admin can create Admin users.');
+        // 🔥 Validate manager assignment
+        if ($request->role === 'agent' && $request->manager_id) {
+            $manager = User::find($request->manager_id);
+            if (! $manager || ! in_array($manager->role, ['manager', 'it'])) {
+                return back()->with('error', 'Invalid manager selected.');
+            }
+
+            // Check if user can assign to this manager
+            $user = auth()->user();
+            if (! $user->isSuperAdmin() && ! $user->isAdmin()) {
+                if ($manager->id !== $user->id) {
+                    return back()->with('error', 'You can only assign agents to yourself.');
+                }
+            }
         }
 
         User::create([
@@ -120,8 +181,7 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
-            'status' => $request->status,
-            'messenger_color' => '#2180f3',
+            'manager_id' => $request->role === 'agent' ? $request->manager_id : null,
         ]);
 
         return redirect()->route('admin.users.index')->with('success', 'User created successfully!');
@@ -129,44 +189,74 @@ class UserController extends Controller
 
     public function edit(User $user)
     {
-        if (!auth()->user()->canManageUsers()) {
+        if (! auth()->user()->canManageUsers()) {
             abort(403, 'Unauthorized');
         }
 
-        if ($user->isSuperAdmin() && !auth()->user()->isSuperAdmin()) {
+        if (! auth()->user()->isSuperAdmin() && $user->isSuperAdmin()) {
             abort(403, 'Unauthorized');
         }
 
-        return view('admin.users.edit', compact('user'));
+        if (! in_array($user->role, $this->getAvailableRoles())) {
+            abort(403, 'Unauthorized');
+        }
+
+        $availableRoles = $this->getAvailableRoles();
+        $managers = $this->getAvailableManagers();
+
+        return view('admin.users.edit', compact('user', 'availableRoles', 'managers'));
     }
 
     public function update(Request $request, User $user)
     {
-        if (!auth()->user()->canManageUsers()) {
+        if (! auth()->user()->canManageUsers()) {
             abort(403, 'Unauthorized');
         }
 
-        if ($user->isSuperAdmin() && !auth()->user()->isSuperAdmin()) {
+        if (! auth()->user()->isSuperAdmin() && $user->isSuperAdmin()) {
             abort(403, 'Unauthorized');
+        }
+
+        if (! in_array($user->role, $this->getAvailableRoles())) {
+            abort(403, 'Unauthorized');
+        }
+
+        $availableRoles = $this->getAvailableRoles();
+
+        // 🔥 Only validate email uniqueness if it's being changed
+        $emailRules = ['required', 'string', 'email', 'max:255'];
+        if ($request->email !== $user->email) {
+            $emailRules[] = Rule::unique('users')->ignore($user->id);
         }
 
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'role' => ['required', Rule::in(['admin', 'user'])],
-            'status' => ['required', Rule::in(['active', 'inactive', 'suspended'])],
+            'email' => $emailRules,
+            'role' => ['required', Rule::in($availableRoles)],
             'password' => 'nullable|string|min:8|confirmed',
+            'manager_id' => 'nullable|exists:users,id',
         ]);
 
-        if ($request->role === 'admin' && !auth()->user()->isSuperAdmin()) {
-            return back()->with('error', 'Only Super Admin can assign Admin role.');
+        // Validate manager assignment for Agent role
+        if ($request->role === 'agent' && $request->manager_id) {
+            $manager = User::find($request->manager_id);
+            if (! $manager || ! in_array($manager->role, ['manager', 'it'])) {
+                return back()->with('error', 'Invalid manager selected.');
+            }
+
+            $authUser = auth()->user();
+            if (! $authUser->isSuperAdmin() && ! $authUser->isAdmin()) {
+                if ($manager->id !== $authUser->id) {
+                    return back()->with('error', 'You can only assign agents to yourself.');
+                }
+            }
         }
 
         $data = [
             'name' => $request->name,
             'email' => $request->email,
             'role' => $request->role,
-            'status' => $request->status,
+            'manager_id' => $request->role === 'agent' ? $request->manager_id : null,
         ];
 
         if ($request->filled('password')) {
@@ -180,7 +270,7 @@ class UserController extends Controller
 
     public function destroy(Request $request, User $user)
     {
-        if (!auth()->user()->isSuperAdmin()) {
+        if (! auth()->user()->isSuperAdmin()) {
             return response()->json(['error' => 'Only Super Admin can delete users.'], 403);
         }
 
@@ -190,49 +280,51 @@ class UserController extends Controller
 
         $user->delete();
 
-        // Get updated stats
         $stats = [
-            'total' => User::where('role', '!=', 'super_admin')->count(),
-            'active' => User::where('role', '!=', 'super_admin')->where('status', 'active')->count(),
-            'admins' => User::where('role', 'admin')->count(),
-            'users' => User::where('role', 'user')->count(),
+            'total' => User::count(),
+            'active' => User::where('status', 'active')->count(),
+            'admins' => User::whereIn('role', ['super_admin', 'admin'])->count(),
+            'users' => User::where('role', 'agent')->count(),
         ];
 
         return response()->json([
             'success' => 'User deleted successfully!',
-            'stats' => $stats
+            'stats' => $stats,
         ]);
     }
 
     public function toggleStatus(Request $request, User $user)
     {
-        if (!auth()->user()->canManageUsers()) {
+        if (! auth()->user()->canManageUsers()) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        if ($user->isSuperAdmin() && !auth()->user()->isSuperAdmin()) {
+        if (! auth()->user()->isSuperAdmin() && $user->isSuperAdmin()) {
             return response()->json(['error' => 'Cannot change Super Admin status'], 403);
+        }
+
+        if (! in_array($user->role, $this->getAvailableRoles())) {
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
         $statuses = ['active', 'inactive', 'suspended'];
         $currentIndex = array_search($user->status, $statuses);
         $nextIndex = ($currentIndex + 1) % count($statuses);
-        
+
         $newStatus = $statuses[$nextIndex];
         $user->update(['status' => $newStatus]);
 
-        // Get updated stats
         $stats = [
-            'total' => User::where('role', '!=', 'super_admin')->count(),
-            'active' => User::where('role', '!=', 'super_admin')->where('status', 'active')->count(),
-            'admins' => User::where('role', 'admin')->count(),
-            'users' => User::where('role', 'user')->count(),
+            'total' => User::count(),
+            'active' => User::where('status', 'active')->count(),
+            'admins' => User::whereIn('role', ['super_admin', 'admin'])->count(),
+            'users' => User::where('role', 'agent')->count(),
         ];
 
         return response()->json([
             'success' => true,
             'status' => $newStatus,
-            'message' => "Status changed to: " . ucfirst($newStatus),
+            'message' => 'Status changed to: '.ucfirst($newStatus),
             'badge_class' => $this->getStatusBadgeClass($newStatus),
             'stats' => $stats,
         ]);
@@ -240,7 +332,7 @@ class UserController extends Controller
 
     private function getStatusBadgeClass($status)
     {
-        return match($status) {
+        return match ($status) {
             'active' => 'success',
             'inactive' => 'warning',
             'suspended' => 'danger',

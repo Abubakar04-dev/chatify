@@ -7,11 +7,11 @@ $timeAndSeen = "<span data-time='$created_at' class='message-time'>
 
 <div class="message-card @if($isSender) mc-sender @endif" data-id="{{ $id }}" data-type="private">
     {{-- Delete Message Button --}}
-    @if ($isSender)
+    {{-- @if ($isSender)
         <div class="actions">
             <i class="fas fa-trash delete-btn" data-id="{{ $id }}"></i>
         </div>
-    @endif
+    @endif --}}
     
     {{-- Card --}}
     <div class="message-card-content">

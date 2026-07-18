@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\GroupMessageSent;
+use App\Events\MentionEvent;
 use App\Models\ChatGroup;
 use App\Models\ChatGroupMember;
 use App\Models\ChatGroupMessage;
@@ -23,11 +24,20 @@ class GroupController extends Controller
 
     public function store(Request $request)
     {
+        dd($request->all());
         $request->validate([
             'name' => 'required|max:255',
-            'members' => 'required|array',
+            'type' => 'required|in:private,public',
+            'members' => 'required_if:type,private|array',
             'image' => 'nullable|image|max:2048',
         ]);
+
+        // 🔥 Only Super Admin, Admin, Manager can create public groups
+        if ($request->type === 'public') {
+            if (! auth()->user()->isSuperAdmin() && ! auth()->user()->isAdmin() && ! auth()->user()->isManager()) {
+                return response()->json(['error' => 'Only Admins and Managers can create public groups'], 403);
+            }
+        }
 
         $image = null;
 
@@ -38,6 +48,7 @@ class GroupController extends Controller
 
         $group = ChatGroup::create([
             'name' => $request->name,
+            'type' => $request->type,
             'image' => $image,
             'created_by' => Auth::id(),
         ]);
@@ -48,12 +59,25 @@ class GroupController extends Controller
             'is_admin' => true,
         ]);
 
-        foreach ($request->members as $memberId) {
-            ChatGroupMember::create([
-                'group_id' => $group->id,
-                'user_id' => $memberId,
-                'is_admin' => false,
-            ]);
+        if ($request->type === 'public') {
+            // 🔥 ADD ALL USERS TO PUBLIC GROUP
+            $allUsers = User::where('id', '!=', Auth::id())->get();
+            foreach ($allUsers as $user) {
+                ChatGroupMember::create([
+                    'group_id' => $group->id,
+                    'user_id' => $user->id,
+                    'is_admin' => false,
+                ]);
+            }
+        } else {
+            // 🔥 PRIVATE GROUP - ADD SELECTED MEMBERS
+            foreach ($request->members as $memberId) {
+                ChatGroupMember::create([
+                    'group_id' => $group->id,
+                    'user_id' => $memberId,
+                    'is_admin' => false,
+                ]);
+            }
         }
 
         return response()->json([
@@ -139,25 +163,25 @@ class GroupController extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-            $page = request()->get('page', 1);
-            $perPage = 50; // Load 50 messages at a time
+        $page = request()->get('page', 1);
+        $perPage = 50; // Load 50 messages at a time
 
-            // 🔥 LOAD MESSAGES WITH PAGINATION
-            $paginated = ChatGroupMessage::where('group_id', $group->id)
-                ->with('sender')
-                ->with(['replyTo' => function ($q) {
-                    $q->with('sender');
-                }])
-                ->with(['reactions' => function ($q) {
-                    $q->with(['user' => function ($query) {
-                        $query->select('id', 'name', 'avatar');
-                    }]);
-                }])
-                ->orderBy('id', 'desc')  // 🔥 Order by newest first for pagination
-                ->paginate($perPage, ['*'], 'page', $page);
+        // 🔥 LOAD MESSAGES WITH PAGINATION
+        $paginated = ChatGroupMessage::where('group_id', $group->id)
+            ->with('sender')
+            ->with(['replyTo' => function ($q) {
+                $q->with('sender');
+            }])
+            ->with(['reactions' => function ($q) {
+                $q->with(['user' => function ($query) {
+                    $query->select('id', 'name', 'avatar');
+                }]);
+            }])
+            ->orderBy('id', 'desc')  // 🔥 Order by newest first for pagination
+            ->paginate($perPage, ['*'], 'page', $page);
 
-            // 🔥 Reverse to show oldest first (for display)
-            $messages = $paginated->reverse();
+        // 🔥 Reverse to show oldest first (for display)
+        $messages = $paginated->reverse();
 
         $html = '';
         $lastDate = null;
@@ -206,38 +230,38 @@ class GroupController extends Controller
                 // Add time to message
                 $timeDisplay = $msg->created_at->format('h:i A');
 
-                 $replyHtml = '';
-                    if ($msg->replyTo) {
-                        $replyHtml = $this->buildReplyHtml($msg->replyTo);
-                    }
+                $replyHtml = '';
+                if ($msg->replyTo) {
+                    $replyHtml = $this->buildReplyHtml($msg->replyTo);
+                }
 
                 // 🔥 BUILD REACTIONS HTML DIRECTLY IN THE MESSAGE
                 $reactionsHtml = $this->buildReactionsHtml($msg->reactions);
                 $replyHtml = '';
-                    if ($msg->replyTo) {
-                        $replyHtml = $this->buildReplyHtml($msg->replyTo);
-                    }
+                if ($msg->replyTo) {
+                    $replyHtml = $this->buildReplyHtml($msg->replyTo);
+                }
 
-            $html .= '
-            <div class="message-card ' . ($isMe ? 'mc-sender' : 'mc-receiver') . '" data-message-id="' . $msg->id . '">
+                $html .= '
+            <div class="message-card '.($isMe ? 'mc-sender' : 'mc-receiver').'" data-message-id="'.$msg->id.'">
                 <div class="message">
                     <div class="message-user" style="font-size:11px; font-weight:600; color:#636e72; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between;">
-                        <span>' . ($isMe ? 'You' : e($msg->sender->name)) . '</span>
+                        <span>'.($isMe ? 'You' : e($msg->sender->name)).'</span>
                         <div style="display:flex; align-items:center; gap:8px;">
-                            <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">' . $timeDisplay . '</span>
+                            <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">'.$timeDisplay.'</span>
                             <!-- 🔥 REPLY BUTTON -->
                             <button class="reply-btn" 
-                                    data-message-id="' . $msg->id . '" 
-                                    data-sender-name="' . ($isMe ? 'You' : e($msg->sender->name)) . '"
-                                    data-message-text="' . e($msg->message ?? '') . '"
+                                    data-message-id="'.$msg->id.'" 
+                                    data-sender-name="'.($isMe ? 'You' : e($msg->sender->name)).'"
+                                    data-message-text="'.e($msg->message ?? '').'"
                                     style="background:none; border:none; color:#b2bec3; cursor:pointer; font-size:12px; padding:2px 6px; border-radius:4px; transition:all 0.2s;">
                                 <i class="fas fa-reply"></i>
                             </button>
                         </div>
                     </div>
-                    ' . $replyHtml . '  <!-- 🔥 ADD THIS LINE -->
-                    ' . $messageContent . '
-                    ' . $reactionsHtml . '
+                    '.$replyHtml.'  <!-- 🔥 ADD THIS LINE -->
+                    '.$messageContent.'
+                    '.$reactionsHtml.'
                 </div>
             </div>
             ';
@@ -249,6 +273,7 @@ class GroupController extends Controller
                 'id' => $group->id,
                 'name' => $group->name,
                 'image' => $group->image,
+                'type' => $group->type,
             ],
             'messages_html' => $html,
             'current_page' => $paginated->currentPage(),
@@ -258,50 +283,49 @@ class GroupController extends Controller
         ]);
     }
 
-
     // 🔥 HELPER FUNCTION: Build reply preview HTML
-        private function buildReplyHtml($replyTo)
-        {
-            if (!$replyTo) {
-                return '';
+    private function buildReplyHtml($replyTo)
+    {
+        if (! $replyTo) {
+            return '';
+        }
+
+        $senderName = $replyTo->sender ? $replyTo->sender->name : 'Unknown';
+        $messageText = $replyTo->message ?? '';
+
+        // Get attachment preview
+        $attachmentText = '';
+        if ($replyTo->attachment) {
+            $isImage = str_starts_with($replyTo->attachment_type ?? '', 'image/');
+            if ($isImage) {
+                $attachmentText = '📷 Image';
+            } else {
+                $attachmentText = '📎 '.basename($replyTo->attachment);
             }
+        }
 
-            $senderName = $replyTo->sender ? $replyTo->sender->name : 'Unknown';
-            $messageText = $replyTo->message ?? '';
+        // If message is empty but has attachment
+        if (! $messageText && $attachmentText) {
+            $messageText = $attachmentText;
+        }
 
-            // Get attachment preview
-            $attachmentText = '';
-            if ($replyTo->attachment) {
-                $isImage = str_starts_with($replyTo->attachment_type ?? '', 'image/');
-                if ($isImage) {
-                    $attachmentText = '📷 Image';
-                } else {
-                    $attachmentText = '📎 ' . basename($replyTo->attachment);
-                }
-            }
+        // Truncate long messages
+        if (strlen($messageText) > 60) {
+            $messageText = substr($messageText, 0, 60).'...';
+        }
 
-            // If message is empty but has attachment
-            if (!$messageText && $attachmentText) {
-                $messageText = $attachmentText;
-            }
-
-            // Truncate long messages
-            if (strlen($messageText) > 60) {
-                $messageText = substr($messageText, 0, 60) . '...';
-            }
-
-            return '
+        return '
             <div class="message-reply-preview" style="background:#f1f2f6; padding:6px 10px; border-radius:6px; margin-bottom:4px; border-left:3px solid #667eea; font-size:12px;">
                 <div style="color:#636e72; font-weight:600; margin-bottom:2px;">
                     <i class="fas fa-reply" style="font-size:10px; margin-right:4px;"></i>
-                    ' . e($senderName) . '
+                    '.e($senderName).'
                 </div>
                 <div style="color:#2d3436; word-wrap:break-word; font-size:13px;">
-                    ' . e($messageText) . '
+                    '.e($messageText).'
                 </div>
             </div>
             ';
-        }
+    }
 
     // 🔥 HELPER FUNCTION: Build reactions HTML
     // 🔥 HELPER FUNCTION: Build reactions HTML with user names
@@ -381,9 +405,45 @@ class GroupController extends Controller
         $request->validate([
             'group_id' => 'required|exists:chat_groups,id',
             'message' => 'nullable|string',
-            'attachment' => 'nullable|file|max:10240', 
+            'attachment' => 'nullable|file|max:10240',
             'reply_to_id' => 'nullable|exists:chat_group_messages,id', // Max 10MB
+            'mentioned_user_ids' => 'nullable|json', //  ADD THIS
+            'mention_all' => 'nullable|string', //  ADD THIS
         ]);
+
+        //  ADD THIS - GET MENTIONED USER IDs
+        $mentionedUserIds = [];
+        $group = ChatGroup::find($request->group_id);
+
+        // Check if @all is mentioned
+        if ($request->mention_all === 'true') {
+            $mentionedUserIds = $group->members()
+                ->where('user_id', '!=', Auth::id())
+                ->pluck('user_id')
+                ->toArray();
+                
+        } else {
+            // Get mentioned user IDs from request
+            if ($request->has('mentioned_user_ids') && $request->mentioned_user_ids) {
+                $mentionedUserIds = json_decode($request->mentioned_user_ids, true);
+            }
+
+            // Also check message text for @username (backup)
+            if (empty($mentionedUserIds) && $request->message) {
+                preg_match_all('/@(\w+)/', $request->message, $matches);
+                $mentionedUsernames = $matches[1] ?? [];
+
+                if (! empty($mentionedUsernames)) {
+                    $mentionedUsers = User::whereIn('name', $mentionedUsernames)
+                        ->whereHas('groups', function ($q) use ($group) {
+                            $q->where('chat_groups.id', $group->id);
+                        })
+                        ->where('id', '!=', Auth::id())
+                        ->get();
+                    $mentionedUserIds = $mentionedUsers->pluck('id')->toArray();
+                }
+            }
+        }
 
         $attachment = null;
         $attachment_type = null;
@@ -395,7 +455,7 @@ class GroupController extends Controller
             $attachment_type = $file->getMimeType();
         }
 
-        // 🔥 Make sure at least one of message or attachment is provided
+        //  Make sure at least one of message or attachment is provided
         if (! $request->message && ! $attachment) {
             return response()->json([
                 'error' => 'Please provide a message or an attachment',
@@ -408,10 +468,31 @@ class GroupController extends Controller
             'message' => $request->message,
             'attachment' => $attachment,
             'attachment_type' => $attachment_type,
-            'reply_to_id' => $request->reply_to_id, 
+            'reply_to_id' => $request->reply_to_id,
         ]);
 
         $message->load(['sender', 'replyTo.sender']);
+
+        //  ADD THIS - SEND NOTIFICATIONS TO MENTIONED USERS
+        if (! empty($mentionedUserIds)) {
+            $sender = Auth::user();
+            $groupName = $group->name;
+            $isAllMention = $request->mention_all === 'true';
+
+            foreach ($mentionedUserIds as $userId) {
+                if ($userId == $sender->id) {
+                    continue;
+                }
+
+                broadcast(new MentionEvent(
+                    $userId,
+                    $sender,
+                    $groupName,
+                    $message,
+                    $isAllMention
+                ));
+            }
+        }
 
         broadcast(new GroupMessageSent($message))->toOthers();
 
@@ -470,6 +551,7 @@ class GroupController extends Controller
                 'id' => $group->id,
                 'name' => $group->name,
                 'image' => $group->image,
+                'type' => $group->type,
                 'created_by' => $group->created_by,
             ],
             'members' => $members,
