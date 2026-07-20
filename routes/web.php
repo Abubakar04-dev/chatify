@@ -11,7 +11,7 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return redirect()->route('chatify');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth','ip'])->group(function () {

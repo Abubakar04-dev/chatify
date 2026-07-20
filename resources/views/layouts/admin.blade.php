@@ -609,7 +609,7 @@
     {{-- TOP NAVBAR --}}
     <nav class="top-navbar">
         <div style="display:flex;align-items:center;gap:15px;">
-            <a href="{{ route('admin.users.index') }}" class="brand">
+            <a href="{{ route('chatify') }}" class="brand">
                 <i class="fas fa-comment-dots"></i>
                 Atlaw <span>Communication</span>
             </a>
@@ -629,7 +629,7 @@
             </a>
             @endif
 
-            <a href="{{ url('/chatify') }}" target="_blank">
+            <a href="{{ url('/chatify') }}" >
                 <i class="fas fa-comment-dots"></i>
                 <span>Chat</span>
             </a>

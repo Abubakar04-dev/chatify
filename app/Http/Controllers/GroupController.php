@@ -24,7 +24,6 @@ class GroupController extends Controller
 
     public function store(Request $request)
     {
-        dd($request->all());
         $request->validate([
             'name' => 'required|max:255',
             'type' => 'required|in:private,public',

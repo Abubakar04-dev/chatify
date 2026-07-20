@@ -75,12 +75,7 @@
                     <a href="#" class="add-to-favorite"><i class="fas fa-star"></i></a>
                     <a href="/"><i class="fas fa-home"></i></a>
                     <a href="#" class="show-infoSide"><i class="fas fa-info-circle"></i></a>
-                    {{-- ✅ ADD BELL ICON HERE --}}
-                    <a href="#" id="notification-bell" title="Notification Settings" style="position:relative;">
-                        <i class="fas fa-bell"></i>
-                        <span id="notification-status-dot"
-                            style="position:absolute;top:-2px;right:-2px;width:10px;height:10px;border-radius:50%;border:2px solid #fff;display:inline-block;"></span>
-                    </a>
+                  
                 </nav>
 
             </nav>

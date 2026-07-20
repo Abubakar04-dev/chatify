@@ -53,6 +53,18 @@
                             style="color: {{ $messengerColor }}; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
                             <i class="fas fa-user-cog"></i> Profile Settings
                         </a>
+
+                        {{-- ✅ BELL ICON - Notification Settings --}}
+                        <div
+                            style="text-align: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #e9ecef;">
+                            <a href="#" id="notification-bell-modal"
+                                style="color: {{ $messengerColor }}; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <i class="fas fa-bell" style="font-size: 16px;"></i>
+                                Notification Settings
+                                <span id="notification-status-dot-modal"
+                                    style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#fdcb6e;margin-left:5px;"></span>
+                            </a>
+                        </div>
                     </div>
 
                     {{-- Dark/Light Mode  --}}
@@ -937,7 +949,7 @@
 
 
     .mention-text {
-    color:    #ea6666;
-    font-weight: 600;
-}
+        color: #ea6666;
+        font-weight: 600;
+    }
 </style>

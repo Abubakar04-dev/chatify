@@ -1496,8 +1496,8 @@ function setActiveStatus(status) {
 $(document).ready(function () {
   // get contacts list
   getContacts();
-  // ✅ ADD CLICK HANDLER HERE (inside document ready)
-  $(document).on('click', '#notification-bell', function (e) {
+  //  ADD CLICK HANDLER HERE (inside document ready)
+  $(document).on('click', '#notification-bell-modal', function (e) {
     e.preventDefault();
     e.stopPropagation();
 

@@ -342,9 +342,40 @@ body {
   margin: 0px 4px;
   box-shadow: 0px 0px 0px 2px var(--primary-color);
 }
-.messenger-favorites > div:active {
-  transform: scale(0.9);
+
+/*  
+.messenger-favorites {
+  padding: 10px;
+  overflow-y: auto;  
+  max-height: 300px; 
 }
+.messenger-favorites > div {
+  display: flex;  
+  align-items: center;
+  padding: 10px 12px;
+  transition: background 0.2s, transform 0.3s;
+  cursor: pointer;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+.messenger-favorites > div:hover {
+  background: #f8f9fa; 
+}
+.messenger-favorites > div p {
+  font-size: 13px;
+  margin: 0px;
+  margin-left: 12px;
+  font-weight: 500;
+  color: #2d3436;
+}
+.messenger-favorites div.avatar {
+  border: 2px solid #fff;
+  box-shadow: 0px 0px 0px 2px var(--primary-color);
+  flex-shrink: 0;  
+}
+.messenger-favorites > div:active {
+  transform: scale(0.98);
+} */
 .messenger-title {
   position: relative;
   margin: 0;
