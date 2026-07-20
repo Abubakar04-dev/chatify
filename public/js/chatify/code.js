@@ -612,6 +612,11 @@ function sendMessage() {
     formData.append("id", getMessengerId());
     formData.append("temporaryMsgId", tempID);
     formData.append("_token", csrfToken);
+
+    if (replyToMessageId) {
+      formData.append('reply_to_id', replyToMessageId);
+    }
+
     $.ajax({
       url: $("#message-form").attr("action"),
       method: "POST",
@@ -665,6 +670,7 @@ function sendMessage() {
           scrollToBottom(messagesContainer);
           // send contact item updates
           sendContactItemUpdates(true);
+          cancelReply();
         }
       },
       error: () => {
@@ -802,6 +808,7 @@ initClientChannel();
 // Listen to messages, and append if data received
 channel.bind("messaging", function (data) {
 
+
   // ✅ ADD THIS - Prevent duplicate notifications
   const notificationKey = data.id + '_' + data.from_id + '_' + data.to_id;
   if (processedPrivateNotifications.has(notificationKey)) {
@@ -849,7 +856,29 @@ channel.bind("messaging", function (data) {
 
   if (data.from_id == getMessengerId() && data.to_id == auth_id) {
     $(".messages").find(".message-hint").remove();
-    messagesContainer.find(".messages").append(data.message);
+
+    // 🔥 ADD THIS LINE - Create a copy of the message
+    let messageHtml = data.message;
+
+    // 🔥 ADD THIS LINE - If I am the receiver, swap the class
+  if (data.to_id == auth_id && data.from_id != auth_id) {
+      messageHtml = messageHtml.replace(/mc-sender/g, 'mc-receiver');
+      messageHtml = messageHtml.replace(/<svg class="svg-inline--fa fa-check[^>]*>.*?<\/svg>/g, '');
+  }
+    // ✅ CHANGE THIS - Use messageHtml instead of data.message
+    messagesContainer.find(".messages").append(messageHtml);
+
+    // ✅ THEN find that exact card by its real message id and inject the reply preview
+    if (data.reply_html && data.message_id) {
+      var newMessageCard = messagesContainer
+        .find(".messages")
+        .find('.message-card[data-id="' + data.message_id + '"]');
+
+      if (newMessageCard.length) {
+        newMessageCard.find('.message .message-text').before(data.reply_html);
+      }
+    }
+
     scrollToBottom(messagesContainer);
     makeSeen(true);
 
@@ -2226,19 +2255,18 @@ function handleGroupMessage(data) {
       console.log('🔔 NOT viewing this group, adding/updating badge');
 
       var badge = groupItem.find('.contact-item-unread');
-      var avatar = groupItem.find('.avatar');
+      var td = groupItem.find('td:first-child');
 
       if (badge.length) {
         var count = parseInt(badge.text()) + 1;
         badge.text(count);
-        badge.show(); // 🔥 FIX: Make sure it's visible
+        badge.show();
         console.log('🔔 Updated unread count for group:', groupId, 'New count:', count);
-      } else if (avatar.length) {
-        avatar.append('<span class="contact-item-unread">1</span>');
-        console.log('🔔 Added new unread badge for group:', groupId);
       } else {
-        groupItem.find('td:first-child').append('<span class="contact-item-unread">1</span>');
-        console.log('🔔 Added badge to td:first-child for group:', groupId);
+        // 🔥 ALWAYS add badge to td
+        td.css('position', 'relative');
+        td.append('<span class="contact-item-unread" style="position:absolute;top:-5px;right:-5px;background:#ff4757;color:white;border-radius:50%;padding:2px 6px;font-size:10px;font-weight:700;min-width:18px;text-align:center;line-height:16px;border:2px solid white;z-index:5;">1</span>');
+        console.log('🔔 Added new unread badge for group:', groupId);
       }
     } else {
       console.log('👁️ Currently viewing this group, NOT adding badge');
@@ -2358,12 +2386,12 @@ function handleGroupMessage(data) {
   var displayName = messageData.sender ? messageData.sender.name : 'Unknown';
   var timeDisplay = messageData.created_at ? new Date(messageData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
- 
- var msgHtml = '';
-if (messageData.message) {
+
+  var msgHtml = '';
+  if (messageData.message) {
     var highlightedMsg = messageData.message.replace(/@([a-zA-Z0-9_\s]+?)(?=\s|$|[.,!?;:])/g, '<span class="mention-text">@$1</span>');
     msgHtml += '<div class="message-text">' + highlightedMsg + '</div>';
-}
+  }
   if (messageData.attachment) {
     var fileUrl = '/storage/' + messageData.attachment;
     var isImage = messageData.attachment_type && messageData.attachment_type.startsWith('image/');
@@ -4630,6 +4658,8 @@ let replyToMessageText = null;
 $(document).on('click', '.reply-btn', function (e) {
   e.stopPropagation();
 
+
+
   let messageId = $(this).data('message-id');
   let senderName = $(this).data('sender-name');
   let messageText = $(this).data('message-text');
@@ -4668,6 +4698,10 @@ $(document).on('click', '.reply-btn', function (e) {
 // Show reply preview above the input
 function showReplyPreview(sender, message) {
   $('.reply-preview-container').remove();
+
+  // 🔥 Make sure we have valid data
+  if (!sender) sender = 'Unknown';
+  if (!message) message = 'Message';
 
   let previewHtml = `
         <div class="reply-preview-container" style="display:flex; align-items:center; justify-content:space-between; background:#f8f9fa; padding:8px 12px; border-radius:8px; margin-bottom:6px; border-left:3px solid #667eea;">
@@ -5193,13 +5227,13 @@ function renderMentionSuggestions(users, query) {
 
   // 🔥 CLICK - Insert @all
   $('#mention-suggestions .mention-all-item').on('click', function () {
-   
+
     insertMentionWithId('all', 'all');
   });
 
   // 🔥 CLICK - Insert user
   $('#mention-suggestions .mention-user-item').on('click', function () {
-  
+
     const userId = $(this).data('user-id');
     const userName = $(this).data('user-name');
     console.log('userId:', userId, 'userName:', userName);
@@ -5211,7 +5245,7 @@ function renderMentionSuggestions(users, query) {
 // ============================================
 
 function showAllMentionOption() {
- 
+
 
   // Remove old suggestions
   $('#mention-suggestions').remove();
@@ -5408,7 +5442,6 @@ if (typeof pusher !== 'undefined' && typeof auth_id !== 'undefined') {
 
     // 🔥 BIND EVENT
     userChannel.bind('App\\Events\\MentionEvent', function (data) {
-      console.log('🔔🔔🔔 MENTION EVENT RECEIVED!', data);
 
       // Show browser notification
       if (Notification.permission === "granted") {
@@ -5469,33 +5502,50 @@ function showMentionToast(data) {
   const isAllMention = data.is_all_mention || false;
   const icon = isAllMention ? '📢' : '🔔';
   const mentionText = isAllMention ? 'mentioned everyone' : 'mentioned you';
+  
+  // 🔥 Check if this is a private chat mention
+  const isPrivate = data.message_type === 'private';
+  
+  // 🔥 For private chat, show different text
+  let locationText = '';
+  if (isPrivate) {
+    locationText = 'in private chat';
+  } else {
+    locationText = 'in <strong>' + (data.group_name || 'group') + '</strong>';
+  }
 
   const toastHtml = `
-        <div id="${toastId}" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2d3436;color:white;padding:12px 20px;border-radius:8px;z-index:999999;font-size:14px;box-shadow:0 4px 15px rgba(0,0,0,0.2);animation:slideUp 0.3s ease;max-width:400px;width:90%;cursor:pointer;border-left:4px solid ${isAllMention ? '#fdcb6e' : '#667eea'};">
-            <div style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:20px;">${icon}</span>
-                <div>
-                    <strong style="color:${isAllMention ? '#fdcb6e' : '#667eea'};">${data.sender_name}</strong> ${mentionText} in <strong>${data.group_name}</strong>
-                    <div style="font-size:12px;color:#b2bec3;margin-top:2px;">${data.message_text}</div>
-                </div>
-            </div>
+    <div id="${toastId}" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#2d3436;color:white;padding:12px 20px;border-radius:8px;z-index:999999;font-size:14px;box-shadow:0 4px 15px rgba(0,0,0,0.2);animation:slideUp 0.3s ease;max-width:400px;width:90%;cursor:pointer;border-left:4px solid ${isAllMention ? '#fdcb6e' : '#667eea'};">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px;">${icon}</span>
+        <div>
+          <strong style="color:${isAllMention ? '#fdcb6e' : '#667eea'};">${data.sender_name}</strong> ${mentionText} ${locationText}
+          <div style="font-size:12px;color:#b2bec3;margin-top:2px;">${data.message_text || ''}</div>
         </div>
-        <style>
-            @keyframes slideUp {
-                from { transform: translateX(-50%) translateY(30px); opacity: 0; }
-                to { transform: translateX(-50%) translateY(0); opacity: 1; }
-            }
-        </style>
-    `;
+      </div>
+    </div>
+    <style>
+      @keyframes slideUp {
+        from { transform: translateX(-50%) translateY(30px); opacity: 0; }
+        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+      }
+    </style>
+  `;
 
   $('#' + toastId).remove();
   $('body').append(toastHtml);
 
-  // Click to open chat
+  // 🔥 Click to open chat
   $('#' + toastId).on('click', function () {
-    const groupElement = $('.group-item[data-group-id="' + data.group_id + '"]');
-    if (groupElement.length) {
-      groupElement.click();
+    if (isPrivate) {
+      // For private chat, just focus the window
+      window.focus();
+    } else if (data.group_id) {
+      // For group chat, open the group
+      const groupElement = $('.group-item[data-group-id="' + data.group_id + '"]');
+      if (groupElement.length) {
+        groupElement.click();
+      }
     }
     $(this).remove();
   });

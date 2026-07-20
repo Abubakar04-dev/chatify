@@ -10,9 +10,11 @@ class ChMessage extends Model
 {
     use UUID;
 
+    protected $guarded = [];
+
     protected $table = 'ch_messages'; // Make sure this matches your table name
 
-     // 🔥 RELATIONSHIP: Get the message being replied to
+    // 🔥 RELATIONSHIP: Get the message being replied to
     public function replyTo()
     {
         return $this->belongsTo(ChMessage::class, 'reply_to_id')
@@ -55,5 +57,10 @@ class ChMessage extends Model
         return $this->reactions()
             ->where('user_id', $userId)
             ->first();
+    }
+
+    public function fromUser()
+    {
+        return $this->belongsTo(User::class, 'from_id');
     }
 }

@@ -17,14 +17,16 @@ class MentionEvent implements ShouldBroadcast
     public $groupName;
     public $message;
     public $isAllMention;
+     public $messageType;
 
-    public function __construct($userId, $sender, $groupName, $message, $isAllMention = false)
+    public function __construct($userId, $sender, $groupName, $message, $isAllMention = false, $messageType = 'group')
     {
         $this->userId = $userId;
         $this->sender = $sender;
         $this->groupName = $groupName;
         $this->message = $message;
         $this->isAllMention = $isAllMention;
+        $this->messageType = $messageType; 
     }
 
     public function broadcastOn()
@@ -43,6 +45,7 @@ class MentionEvent implements ShouldBroadcast
             'message_id' => $this->message->id,
             'group_id' => $this->message->group_id,
             'is_all_mention' => $this->isAllMention,
+            'message_type' => $this->messageType,
         ];
     }
 }

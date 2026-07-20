@@ -231,7 +231,7 @@
    UNREAD BADGE - MATCHES CHATIFY STYLE
    ============================================ */
 
-    .listOfGroups .contact-item-unread {
+    /* .listOfGroups .contact-item-unread {
         position: absolute;
         top: -6px;
         right: -6px;
@@ -249,7 +249,7 @@
         z-index: 2;
         box-shadow: 0 2px 8px rgba(255, 71, 87, 0.4);
         animation: badgePop 0.3s ease;
-    }
+    } */
 
     /* Badge pop animation */
     @keyframes badgePop {

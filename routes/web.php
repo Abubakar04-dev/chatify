@@ -71,5 +71,18 @@ Route::middleware(['auth','ip'])->group(function () {
         Route::delete('/ip-addresses/{id}', [IpAddressController::class, 'destroy'])->name('admin.ip-addresses.destroy');
         Route::post('/ip-addresses/{id}/toggle', [IpAddressController::class, 'toggleActive'])->name('admin.ip-addresses.toggle');
     });
+
+    Route::get('/users/{id}', function ($id) {
+    $user = App\Models\User::find($id);
+    if ($user) {
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'avatar' => $user->avatar,
+        ]);
+    }
+    return response()->json(['error' => 'User not found'], 404);
+});
 });
 require __DIR__ . '/auth.php';
