@@ -209,7 +209,9 @@ class GroupController extends Controller
 
                 // Add text message
                 if ($msg->message) {
-                    $messageContent .= '<div class="message-text">'.e($msg->message).'</div>';
+                    // 🔥 Highlight @words - matches everything after @ until next @ or end
+                    $highlighted = preg_replace('/@([a-zA-Z0-9_\s]+?)(?=[\s]|$|@)/', '<span class="mention-text">@$1</span>', e($msg->message));
+                    $messageContent .= '<div class="message-text">'.$highlighted.'</div>';
                 }
 
                 // Add attachment
@@ -421,7 +423,7 @@ class GroupController extends Controller
                 ->where('user_id', '!=', Auth::id())
                 ->pluck('user_id')
                 ->toArray();
-                
+
         } else {
             // Get mentioned user IDs from request
             if ($request->has('mentioned_user_ids') && $request->mentioned_user_ids) {

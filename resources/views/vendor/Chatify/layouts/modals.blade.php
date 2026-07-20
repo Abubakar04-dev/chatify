@@ -390,7 +390,7 @@
         }
     }
 
-    
+
 
     /* ============================================
    MODAL STYLING - KEEP EXISTING
@@ -933,4 +933,11 @@
     .dark-mode #reaction-tooltip #reaction-tooltip-count {
         color: #b2bec3;
     }
+
+
+
+    .mention-text {
+    color:    #ea6666;
+    font-weight: 600;
+}
 </style>

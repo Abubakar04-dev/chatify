@@ -2209,9 +2209,7 @@ function handleGroupMessage(data) {
 
     // 🔥 Check if we're viewing THIS group
     var isCurrentlyViewingThisGroup = (window.groupState.currentGroupId == groupId && window.groupState.isGroupChat);
-    console.log('👁️ Currently viewing this group?', isCurrentlyViewingThisGroup);
-    console.log('📊 Current Group ID:', window.groupState.currentGroupId);
-    console.log('📊 isGroupChat:', window.groupState.isGroupChat);
+
 
     // Update last message preview (ALWAYS)
     var senderName = messageData.sender ? messageData.sender.name : 'Someone';
@@ -2360,11 +2358,12 @@ function handleGroupMessage(data) {
   var displayName = messageData.sender ? messageData.sender.name : 'Unknown';
   var timeDisplay = messageData.created_at ? new Date(messageData.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
-  var msgHtml = '';
-  if (messageData.message) {
-    msgHtml += '<div class="message-text">' + messageData.message + '</div>';
-  }
-
+ 
+ var msgHtml = '';
+if (messageData.message) {
+    var highlightedMsg = messageData.message.replace(/@([a-zA-Z0-9_\s]+?)(?=\s|$|[.,!?;:])/g, '<span class="mention-text">@$1</span>');
+    msgHtml += '<div class="message-text">' + highlightedMsg + '</div>';
+}
   if (messageData.attachment) {
     var fileUrl = '/storage/' + messageData.attachment;
     var isImage = messageData.attachment_type && messageData.attachment_type.startsWith('image/');
@@ -3337,7 +3336,7 @@ console.log('✅ Group handler ready!');
                     <span>You</span>
                     <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">${timeDisplay}</span>
                 </div>
-                <div class="message-text">${messageHtml}</div>
+               <div class="message-text">${messageText.replace(/@([a-zA-Z0-9_\s]+?)(?=\s|$|[.,!?;:])/g, '<span class="mention-text">@$1</span>')}</div>
             </div>
         </div>
     `);
@@ -3409,7 +3408,7 @@ console.log('✅ Group handler ready!');
                             <span class="message-time" style="font-size:10px; font-weight:400; color:#b2bec3; margin-left:10px;">${timeDisplay}</span>
                         </div>
                         ${replyHtml}
-                        <div class="message-text">${msgHtml}</div>
+                       <div class="message-text">${(realMsg.message || '').replace(/@([a-zA-Z0-9_\s]+?)(?=\s|$|[.,!?;:])/g, '<span class="mention-text">@$1</span>')}</div>
                     </div>
                 </div>
             `);
@@ -5025,18 +5024,10 @@ function showMentionSuggestions(query) {
 }
 
 // ============================================
-// RENDER MENTION SUGGESTIONS - WITH USER IDs
-// ============================================
-
-// ============================================
-// RENDER MENTION SUGGESTIONS - WITH USER IDs
+// RENDER MENTION SUGGESTIONS - PERFECT POSITIONING
 // ============================================
 
 function renderMentionSuggestions(users, query) {
-  console.log('🔥 renderMentionSuggestions CALLED');
-  console.log('users:', users);
-  console.log('query:', query);
-
   // Remove old suggestions
   $('#mention-suggestions').remove();
 
@@ -5047,26 +5038,119 @@ function renderMentionSuggestions(users, query) {
     return;
   }
 
+  // 🔥 Get the input position
+  const input = messageInput[0];
+  if (!input) {
+    console.warn('⚠️ Message input not found');
+    return;
+  }
+
+  const rect = input.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+
+  // 🔥 Calculate available space
+  const spaceAbove = rect.top;
+  const spaceBelow = viewportHeight - rect.bottom;
+  const dropdownHeight = Math.min(220, users.length * 45 + 50); // Estimate height
+
+
+
+  // 🔥 Decide where to show the dropdown
+  let top, maxHeight;
+  const isMobile = viewportWidth < 768;
+
+  // 🔥 If there's more space above, show above
+  if (spaceAbove > spaceBelow && spaceAbove > dropdownHeight) {
+    // Show ABOVE the input
+    top = rect.top - dropdownHeight - 5;
+    maxHeight = Math.min(220, spaceAbove - 20);
+    console.log('⬆️ Showing ABOVE input');
+  } else {
+    // Show BELOW the input
+    top = rect.bottom + 5;
+    maxHeight = Math.min(220, spaceBelow - 20);
+    console.log('⬇️ Showing BELOW input');
+  }
+
+  // 🔥 Ensure dropdown doesn't go off screen
+  if (top < 10) {
+    top = 10;
+    maxHeight = viewportHeight - 20;
+  }
+
+  if (top + maxHeight > viewportHeight - 10) {
+    maxHeight = viewportHeight - top - 10;
+  }
+
+  // 🔥 Horizontal positioning
+  let left = rect.left;
+  const dropdownWidth = isMobile ? Math.min(viewportWidth - 20, 280) : Math.min(300, viewportWidth - 20);
+
+  if (left + dropdownWidth > viewportWidth - 10) {
+    left = viewportWidth - dropdownWidth - 10;
+  }
+  if (left < 10) {
+    left = 10;
+  }
+
+  console.log('📍 Final position:', { top, left, maxHeight, dropdownWidth });
+
   let html = `
-        <div id="mention-suggestions" style="position:fixed;bottom:75px;left:20px;background:white;border-radius:10px;box-shadow:0 5px 30px rgba(0,0,0,0.15);border:1px solid #e9ecef;z-index:999999;max-height:220px;overflow-y:auto;min-width:220px;padding:5px 0;">
+        <div id="mention-suggestions" style="
+            position:fixed !important;
+            top:${Math.round(top)}px !important;
+            left:${Math.round(left)}px !important;
+            background:white !important;
+            border-radius:12px !important;
+            box-shadow:0 10px 40px rgba(0,0,0,0.2) !important;
+            border:1px solid #e9ecef !important;
+            z-index:9999999 !important;
+            max-height:${Math.round(maxHeight)}px !important;
+            overflow-y:auto !important;
+            min-width:${isMobile ? '200' : '250'}px !important;
+            max-width:${isMobile ? 'calc(100vw - 40px)' : '350px'} !important;
+            width:auto !important;
+            padding:5px 0 !important;
+        ">
     `;
 
   // 🔥 ADD @ALL OPTION
   if (query && query.toLowerCase().includes('all')) {
     html += `
-            <div class="mention-user-item mention-all-item" data-user-id="all" data-user-name="all" style="display:flex;align-items:center;padding:10px 14px;cursor:pointer;transition:background 0.15s;border-bottom:1px solid #f1f2f6;">
-                <div style="width:32px;height:32px;border-radius:50%;background:#667eea;display:flex;align-items:center;justify-content:center;margin-right:10px;color:white;font-size:14px;font-weight:bold;">
+            <div class="mention-user-item mention-all-item" data-user-id="all" data-user-name="all" style="
+                display:flex !important;
+                align-items:center !important;
+                padding:10px 14px !important;
+                cursor:pointer !important;
+                transition:background 0.15s !important;
+                border-bottom:1px solid #f1f2f6 !important;
+            ">
+                <div style="
+                    width:32px !important;
+                    height:32px !important;
+                    border-radius:50% !important;
+                    background:#667eea !important;
+                    display:flex !important;
+                    align-items:center !important;
+                    justify-content:center !important;
+                    margin-right:10px !important;
+                    color:white !important;
+                    font-size:14px !important;
+                    font-weight:bold !important;
+                    flex-shrink:0 !important;
+                ">
                     📢
                 </div>
                 <div>
-                    <div style="font-size:14px;font-weight:600;color:#667eea;">@all</div>
-                    <div style="font-size:11px;color:#b2bec3;">Mention everyone in this group</div>
+                    <div style="font-size:14px !important;font-weight:600 !important;color:#667eea !important;">@all</div>
+                    <div style="font-size:11px !important;color:#b2bec3 !important;">Mention everyone in this group</div>
                 </div>
             </div>
         `;
   }
 
-  // 🔥 SHOW USERS WITH THEIR IDs
+  // 🔥 SHOW USERS
   users.forEach(function (user) {
     const avatar = user.avatar ? `/storage/users-avatar/${user.avatar}` : '/images/avatar.png';
     const highlightedName = user.name.replace(new RegExp(query, 'gi'), function (match) {
@@ -5074,13 +5158,25 @@ function renderMentionSuggestions(users, query) {
     });
 
     html += `
-            <div class="mention-user-item" data-user-id="${user.id}" data-user-name="${user.name}" style="display:flex;align-items:center;padding:8px 14px;cursor:pointer;transition:background 0.15s;">
-                <img src="${avatar}" style="width:32px;height:32px;border-radius:50%;margin-right:10px;object-fit:cover;">
-                <div>
-                    <div style="font-size:13px;font-weight:500;color:#2d3436;">${highlightedName}</div>
-                    <div style="font-size:11px;color:#b2bec3;">${user.email || ''}</div>
+            <div class="mention-user-item" data-user-id="${user.id}" data-user-name="${user.name}" style="
+                display:flex !important;
+                align-items:center !important;
+                padding:8px 14px !important;
+                cursor:pointer !important;
+                transition:background 0.15s !important;
+            ">
+                <img src="${avatar}" style="
+                    width:32px !important;
+                    height:32px !important;
+                    border-radius:50% !important;
+                    margin-right:10px !important;
+                    object-fit:cover !important;
+                    flex-shrink:0 !important;
+                ">
+                <div style="flex:1 !important; min-width:0 !important;">
+                    <div style="font-size:13px !important;font-weight:500 !important;color:#2d3436 !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;">${highlightedName}</div>
+                    <div style="font-size:11px !important;color:#b2bec3 !important;white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important;">${user.email || ''}</div>
                 </div>
-                <div style="margin-left:auto;font-size:10px;color:#b2bec3;">ID: ${user.id}</div>
             </div>
         `;
   });
@@ -5088,38 +5184,137 @@ function renderMentionSuggestions(users, query) {
   html += '</div>';
   $('body').append(html);
 
+  // 🔥 Hover effect
+  $('#mention-suggestions .mention-user-item').on('mouseenter', function () {
+    $(this).css('background', '#f8f9fa');
+  }).on('mouseleave', function () {
+    $(this).css('background', 'transparent');
+  });
+
   // 🔥 CLICK - Insert @all
   $('#mention-suggestions .mention-all-item').on('click', function () {
-    console.log('🔥🔥🔥 @all CLICKED!');
+   
     insertMentionWithId('all', 'all');
   });
 
-  // 🔥 CLICK - Insert user with ID
+  // 🔥 CLICK - Insert user
   $('#mention-suggestions .mention-user-item').on('click', function () {
-    console.log('🔥🔥🔥 USER CLICKED!');
+  
     const userId = $(this).data('user-id');
     const userName = $(this).data('user-name');
     console.log('userId:', userId, 'userName:', userName);
     insertMentionWithId(userId, userName);
   });
 }
-
 // ============================================
-// SHOW @ALL OPTION - ADD THIS FUNCTION
+// SHOW @ALL OPTION - PERFECT POSITIONING
 // ============================================
 
 function showAllMentionOption() {
-  console.log('📢 Showing @all option');
+ 
+
+  // Remove old suggestions
+  $('#mention-suggestions').remove();
+
+  // 🔥 Get the input position
+  const input = messageInput[0];
+  if (!input) {
+    console.warn('⚠️ Message input not found');
+    return;
+  }
+
+  const rect = input.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+
+  // 🔥 Calculate available space
+  const spaceAbove = rect.top;
+  const spaceBelow = viewportHeight - rect.bottom;
+  const dropdownHeight = 70; // @all option is shorter
+
+  console.log('📐 @all Space calculation:', {
+    spaceAbove,
+    spaceBelow,
+    dropdownHeight,
+    viewportHeight
+  });
+
+  // 🔥 Decide where to show
+  let top;
+  const isMobile = viewportWidth < 768;
+
+  if (spaceAbove > spaceBelow && spaceAbove > dropdownHeight) {
+    // Show ABOVE
+    top = rect.top - dropdownHeight - 5;
+    console.log('⬆️ Showing @all ABOVE input');
+  } else {
+    // Show BELOW
+    top = rect.bottom + 5;
+    console.log('⬇️ Showing @all BELOW input');
+  }
+
+  // 🔥 Ensure it's visible
+  if (top < 10) {
+    top = 10;
+  }
+  if (top + dropdownHeight > viewportHeight - 10) {
+    top = viewportHeight - dropdownHeight - 10;
+  }
+
+  // 🔥 Horizontal positioning
+  let left = rect.left;
+  const dropdownWidth = isMobile ? Math.min(viewportWidth - 20, 220) : 250;
+
+  if (left + dropdownWidth > viewportWidth - 10) {
+    left = viewportWidth - dropdownWidth - 10;
+  }
+  if (left < 10) {
+    left = 10;
+  }
+
+  console.log('📍 @all Final position:', { top, left });
 
   let html = `
-        <div id="mention-suggestions" style="position:fixed;bottom:75px;left:20px;background:white;border-radius:10px;box-shadow:0 5px 30px rgba(0,0,0,0.15);border:1px solid #e9ecef;z-index:999999;min-width:200px;padding:5px 0;">
-            <div class="mention-all-item" style="display:flex;align-items:center;padding:10px 14px;cursor:pointer;transition:background 0.15s;">
-                <div style="width:32px;height:32px;border-radius:50%;background:#667eea;display:flex;align-items:center;justify-content:center;margin-right:10px;color:white;font-size:14px;font-weight:bold;">
+        <div id="mention-suggestions" style="
+            position:fixed !important;
+            top:${Math.round(top)}px !important;
+            left:${Math.round(left)}px !important;
+            background:white !important;
+            border-radius:12px !important;
+            box-shadow:0 10px 40px rgba(0,0,0,0.2) !important;
+            border:1px solid #e9ecef !important;
+            z-index:9999999 !important;
+            min-width:${isMobile ? '180' : '220'}px !important;
+            max-width:${isMobile ? 'calc(100vw - 40px)' : '280px'} !important;
+            width:auto !important;
+            padding:5px 0 !important;
+        ">
+            <div class="mention-all-item" style="
+                display:flex !important;
+                align-items:center !important;
+                padding:10px 14px !important;
+                cursor:pointer !important;
+                transition:background 0.15s !important;
+            ">
+                <div style="
+                    width:32px !important;
+                    height:32px !important;
+                    border-radius:50% !important;
+                    background:#667eea !important;
+                    display:flex !important;
+                    align-items:center !important;
+                    justify-content:center !important;
+                    margin-right:10px !important;
+                    color:white !important;
+                    font-size:14px !important;
+                    font-weight:bold !important;
+                    flex-shrink:0 !important;
+                ">
                     📢
                 </div>
                 <div>
-                    <div style="font-size:14px;font-weight:600;color:#667eea;">@all</div>
-                    <div style="font-size:11px;color:#b2bec3;">Mention everyone in this group</div>
+                    <div style="font-size:14px !important;font-weight:600 !important;color:#667eea !important;">@all</div>
+                    <div style="font-size:11px !important;color:#b2bec3 !important;">Mention everyone in this group</div>
                 </div>
             </div>
         </div>
@@ -5127,20 +5322,23 @@ function showAllMentionOption() {
 
   $('body').append(html);
 
-  // 🔥🔥🔥 THIS MUST CALL insertMentionWithId('all', 'all')
+  // Hover effect
+  $('#mention-suggestions .mention-all-item').on('mouseenter', function () {
+    $(this).css('background', '#f8f9fa');
+  }).on('mouseleave', function () {
+    $(this).css('background', 'transparent');
+  });
+
+  // 🔥 CLICK
   $('#mention-suggestions .mention-all-item').on('click', function () {
     console.log('🔥🔥🔥 @all CLICKED from showAllMentionOption!');
-    insertMentionWithId('all', 'all');  // 🔥 THIS IS CORRECT
+    insertMentionWithId('all', 'all');
   });
 }
-
 // ============================================
 // INSERT MENTION WITH USER ID
 // ============================================
 function insertMentionWithId(userId, userName) {
-  console.log('🔥🔥🔥 insertMentionWithId CALLED!');
-  console.log('userId:', userId);
-  console.log('userName:', userName);
 
   // 🔥 MAKE SURE window.mentionedUsers EXISTS
   if (typeof window.mentionedUsers === 'undefined') {
@@ -5153,7 +5351,6 @@ function insertMentionWithId(userId, userName) {
 
   const atIndex = text.lastIndexOf('@', cursorPos);
   if (atIndex === -1) {
-    console.log('❌ No @ found');
     return;
   }
 
@@ -5164,7 +5361,6 @@ function insertMentionWithId(userId, userName) {
     window.mentionAll = true;  // 🔥 THIS MUST BE SET
     window.mentionedUsers = [];
     insertText = '@all ';
-    console.log('📢 @all SET! window.mentionAll =', window.mentionAll);
   } else {
     // 🔥 Add user ID to list
     window.mentionedUsers = window.mentionedUsers.filter(function (u) {
@@ -5175,7 +5371,6 @@ function insertMentionWithId(userId, userName) {
       name: userName
     });
     insertText = '@' + userName + ' ';
-    console.log('👤 USER ADDED! mentionedUsers:', window.mentionedUsers);
   }
 
   // Insert into input
