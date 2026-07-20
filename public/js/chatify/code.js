@@ -1654,7 +1654,7 @@ $(document).ready(function () {
     $(".messenger-list-item").removeClass("m-list-active");
     $(this).addClass("m-list-active");
     const userID = $(this).attr("data-contact");
-    routerPush(document.title, `${url}/${userID}`);
+    // routerPush(document.title, `${url}/${userID}`);
     updateSelectedContact(userID);
   });
 
@@ -1685,7 +1685,7 @@ $(document).ready(function () {
     setMessengerId(uid);
     IDinfo(uid);
     updateSelectedContact(uid);
-    routerPush(document.title, `${url}/${uid}`);
+    // routerPush(document.title, `${url}/${uid}`);
   });
 
   // list view buttons
@@ -1693,7 +1693,7 @@ $(document).ready(function () {
     $(".messenger-listView").hide();
   });
   $(".show-listView").on("click", function () {
-    routerPush(document.title, `${url}/`);
+    // routerPush(document.title, `${url}/`);
     $(".messenger-listView").show();
   });
 
