@@ -14,10 +14,17 @@ class ChatGroupMessage extends Model
         'attachment',
         'attachment_type',
         'reply_to_id',
+        'is_pinned',      // ADD
+        'pinned_at',      // ADD
+        'pinned_by',
     ];
 
+    // Add relationship for who pinned the message
+    public function pinnedBy()
+    {
+        return $this->belongsTo(User::class, 'pinned_by');
+    }
 
-    
     // 🔥 RELATIONSHIP: Get the message being replied to
     public function replyTo()
     {
@@ -52,7 +59,6 @@ class ChatGroupMessage extends Model
     {
         return $this->reads()->where('user_id', $userId)->exists();
     }
-
 
     // 🔥 ADD REACTIONS RELATIONSHIP
     public function reactions()

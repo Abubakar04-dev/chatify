@@ -38,7 +38,8 @@ $timeAndSeen = "<span data-time='$created_at' class='message-time'>
         </div>
         @endif
         
-        {{-- 🔥 REACTIONS CONTAINER --}}
+        {{-- 
+         REACTIONS CONTAINER --}}
         <div class="message-reactions" id="reactions-{{ $id }}">
             {{-- Reactions will be loaded here dynamically --}}
         </div>

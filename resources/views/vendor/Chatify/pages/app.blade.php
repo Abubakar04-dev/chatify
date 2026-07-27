@@ -5,7 +5,8 @@
         {{-- Header and search bar --}}
         <div class="m-header">
             <nav>
-                <a href="#"><i class="fas fa-inbox"></i> <span class="messenger-headTitle">MESSAGES</span> </a>
+                <a href="#"><i class="fas fa-inbox"></i> <span class="messenger-headTitle">Atlaw
+                        Communications</span> </a>
                 {{-- header buttons --}}
 
                 <nav class="m-header-right">
@@ -57,60 +58,106 @@
         </div>
     </div>
 
-    {{-- ----------------------Messaging side---------------------- --}}
-    <div class="messenger-messagingView">
-        {{-- header title [conversation name] amd buttons --}}
-        <div class="m-header m-header-messaging">
-            <nav class="chatify-d-flex chatify-justify-content-between chatify-align-items-center">
-                {{-- header back button, avatar and user name --}}
-                <div class="chatify-d-flex chatify-justify-content-between chatify-align-items-center">
-                    <a href="#" class="show-listView"><i class="fas fa-arrow-left"></i></a>
-                    <div class="avatar av-s header-avatar"
-                        style="margin: 0px 10px; margin-top: -5px; margin-bottom: -5px;">
-                    </div>
-                    <a href="#" class="user-name">{{ config('chatify.name') }}</a>
+ {{-- ----------------------Messaging side---------------------- --}}
+<div class="messenger-messagingView">
+    {{-- header title [conversation name] amd buttons --}}
+    <div class="m-header m-header-messaging">
+        <nav class="chatify-d-flex chatify-justify-content-between chatify-align-items-center">
+            {{-- header back button, avatar and user name --}}
+            <div class="chatify-d-flex chatify-justify-content-between chatify-align-items-center">
+                <a href="#" class="show-listView"><i class="fas fa-arrow-left"></i></a>
+                <div class="avatar av-s header-avatar"
+                    style="margin: 0px 10px; margin-top: -5px; margin-bottom: -5px;">
                 </div>
-                {{-- header buttons --}}
-                <nav class="m-header-right">
-                    <a href="#" class="add-to-favorite"><i class="fas fa-star"></i></a>
-                    <a href="/"><i class="fas fa-home"></i></a>
-                    <a href="#" class="show-infoSide"><i class="fas fa-info-circle"></i></a>
-                  
-                </nav>
-
+                <a href="#" class="user-name">{{ config('chatify.name') }}</a>
+            </div>
+            {{-- header buttons --}}
+            <nav class="m-header-right">
+                <a href="#" class="add-to-favorite"><i class="fas fa-star"></i></a>
+                <a href="/"><i class="fas fa-home"></i></a>
+                <a href="#" class="show-infoSide"><i class="fas fa-info-circle"></i></a>
             </nav>
-            {{-- Internet connection --}}
-            <div class="internet-connection">
-                <span class="ic-connected">Connected</span>
-                <span class="ic-connecting">Connecting...</span>
-                <span class="ic-noInternet">No internet access</span>
-            </div>
+        </nav>
+        {{-- Internet connection --}}
+        <div class="internet-connection">
+            <span class="ic-connected">Connected</span>
+            <span class="ic-connecting">Connecting...</span>
+            <span class="ic-noInternet">No internet access</span>
         </div>
+    </div>
 
-        {{-- Messaging area --}}
-        <div class="m-body messages-container app-scroll">
-            <div class="messages">
-                <p class="message-hint center-el"><span>Please select a chat to start messaging</span></p>
-            </div>
-            {{-- Typing indicator --}}
-            <div class="typing-indicator">
-                <div class="message-card typing">
-                    <div class="message">
-                        <span class="typing-dots">
-                            <span class="dot dot-1"></span>
-                            <span class="dot dot-2"></span>
-                            <span class="dot dot-3"></span>
-                        </span>
-                    </div>
+    <!-- 🔥🔥🔥 PINNED MESSAGE BANNER - MOVE IT HERE (BETWEEN HEADER AND MESSAGES) 🔥🔥🔥 -->
+    <div id="pinned-message-banner" style="
+        display: none;
+        background: #e8f0fe;
+        border-bottom: 1px solid #d0d9e8;
+        padding: 6px 16px;
+        flex-shrink: 0;
+        z-index: 5;
+    ">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <i class="fas fa-thumbtack" style="
+                color: #5b6f8c;
+                font-size: 14px;
+                transform: rotate(-45deg);
+            "></i>
+            <span style="color: #5b6f8c; font-size: 13px; font-weight: 500;">Pinned</span>
+            <span id="pinned-message-preview" style="
+                color: #2d3436;
+                font-size: 13px;
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                cursor: pointer;
+            "></span>
+            <span id="pinned-message-sender" style="color: #8c9cb0; font-size: 12px;"></span>
+
+            <button class="unpin-btn" id="unpin-from-banner" 
+                    data-message-id="" 
+                    data-group-id=""
+                    style="
+                        background: none;
+                        border: none;
+                        color: #ff4757;
+                        cursor: pointer;
+                        font-size: 12px;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        transition: all 0.2s;
+                        display: none;
+                    ">
+                <i class="fas fa-thumbtack"></i> Unpin
+            </button>
+
+            <i class="fas fa-chevron-right" style="color: #8c9cb0; font-size: 12px;"></i>
+        </div>
+    </div>
+
+    {{-- Messaging area --}}
+    <div class="m-body messages-container app-scroll">
+        <div class="messages">
+            <p class="message-hint center-el"><span>Please select a chat to start messaging</span></p>
+        </div>
+        {{-- Typing indicator --}}
+        <div class="typing-indicator">
+            <div class="message-card typing">
+                <div class="message">
+                    <span class="typing-dots">
+                        <span class="dot dot-1"></span>
+                        <span class="dot dot-2"></span>
+                        <span class="dot dot-3"></span>
+                    </span>
                 </div>
             </div>
-
         </div>
-        {{-- Send Message Form --}}
-        @include('Chatify::layouts.sendForm')
     </div>
+
+    {{-- Send Message Form --}}
+    @include('Chatify::layouts.sendForm')
+</div>
     {{-- ---------------------- Info side ---------------------- --}}
-    <div class="messenger-infoView app-scroll">
+    <div class="messenger-infoView app-scroll" style="display: none">
         {{-- nav actions --}}
         <nav>
             <p>User Details</p>

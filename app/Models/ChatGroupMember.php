@@ -9,7 +9,7 @@ class ChatGroupMember extends Model
     protected $fillable = [
         'group_id',
         'user_id',
-        'is_admin'
+        'is_admin',
     ];
 
     public function user()

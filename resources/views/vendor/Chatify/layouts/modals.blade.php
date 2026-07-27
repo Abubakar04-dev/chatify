@@ -227,6 +227,38 @@
         border-color: #667eea;
     }
 
+    /* Pinned banner - expanded state */
+#pinned-message-banner {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+#pinned-message-banner:hover {
+    background: #dce6f5;
+}
+
+#pinned-message-banner.expanded {
+    background: #dce6f5;
+    padding: 10px 16px;
+}
+
+#pinned-message-banner .fa-chevron-right,
+#pinned-message-banner .fa-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+/* Pinned message preview */
+#pinned-message-preview {
+    transition: all 0.3s ease;
+}
+
+#pinned-message-banner.expanded #pinned-message-preview {
+    white-space: normal !important;
+    word-wrap: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
     /* ============================================
    UNREAD BADGE - MATCHES CHATIFY STYLE
    ============================================ */

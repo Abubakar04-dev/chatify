@@ -861,10 +861,10 @@ channel.bind("messaging", function (data) {
     let messageHtml = data.message;
 
     // 🔥 ADD THIS LINE - If I am the receiver, swap the class
-  if (data.to_id == auth_id && data.from_id != auth_id) {
+    if (data.to_id == auth_id && data.from_id != auth_id) {
       messageHtml = messageHtml.replace(/mc-sender/g, 'mc-receiver');
       messageHtml = messageHtml.replace(/<svg class="svg-inline--fa fa-check[^>]*>.*?<\/svg>/g, '');
-  }
+    }
     // ✅ CHANGE THIS - Use messageHtml instead of data.message
     messagesContainer.find(".messages").append(messageHtml);
 
@@ -923,15 +923,15 @@ channel.bind("messaging", function (data) {
 // });
 
 // listen to typing indicator
-clientListenChannel.bind("client-typing", function (data) {
-  if (data.from_id == getMessengerId() && data.to_id == auth_id) {
-    data.typing == true
-      ? messagesContainer.find(".typing-indicator").show()
-      : messagesContainer.find(".typing-indicator").hide();
-  }
-  // scroll to bottom
-  scrollToBottom(messagesContainer);
-});
+// clientListenChannel.bind("client-typing", function (data) {
+//   if (data.from_id == getMessengerId() && data.to_id == auth_id) {
+//     data.typing == true
+//       ? messagesContainer.find(".typing-indicator").show()
+//       : messagesContainer.find(".typing-indicator").hide();
+//   }
+//   // scroll to bottom
+//   scrollToBottom(messagesContainer);
+// });
 
 // listen to seen event
 clientListenChannel.bind("client-seen", function (data) {
@@ -1003,13 +1003,13 @@ document.addEventListener("visibilitychange", handleVisibilityChange, false);
  * Trigger typing event
  *-------------------------------------------------------------
  */
-function isTyping(status) {
-  return clientSendChannel.trigger("client-typing", {
-    from_id: auth_id, // Me
-    to_id: getMessengerId(), // Messenger
-    typing: status,
-  });
-}
+// function isTyping(status) {
+//   return clientSendChannel.trigger("client-typing", {
+//     from_id: auth_id, // Me
+//     to_id: getMessengerId(), // Messenger
+//     typing: status,
+//   });
+// }
 
 /**
  *-------------------------------------------------------------
@@ -1777,17 +1777,17 @@ $(document).ready(function () {
   });
 
   // typing indicator on [input] keyDown
-  $("#message-form .m-send").on("keydown", () => {
-    if (typingNow < 1) {
-      isTyping(true);
-      typingNow = 1;
-    }
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(function () {
-      isTyping(false);
-      typingNow = 0;
-    }, 1000);
-  });
+  // $("#message-form .m-send").on("keydown", () => {
+  //   if (typingNow < 1) {
+  //     isTyping(true);
+  //     typingNow = 1;
+  //   }
+  //   clearTimeout(typingTimeout);
+  //   typingTimeout = setTimeout(function () {
+  //     isTyping(false);
+  //     typingNow = 0;
+  //   }, 1000);
+  // });
 
   // Image modal
   $("body").on("click", ".chat-image", function () {
@@ -2388,10 +2388,14 @@ function handleGroupMessage(data) {
 
 
   var msgHtml = '';
-  if (messageData.message) {
-    var highlightedMsg = messageData.message.replace(/@([a-zA-Z0-9_\s]+?)(?=\s|$|[.,!?;:])/g, '<span class="mention-text">@$1</span>');
+if (messageData.message) {
+    var msgText = messageData.message;
+    // 🔥 STEP 1: Convert URLs to clickable links
+    msgText = msgText.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="message-link">$1</a>');
+    // 🔥 STEP 2: Highlight @mentions
+    var highlightedMsg = msgText.replace(/@([a-zA-Z0-9_\s]+?)(?=\s|$|[.,!?;:])/g, '<span class="mention-text">@$1</span>');
     msgHtml += '<div class="message-text">' + highlightedMsg + '</div>';
-  }
+}
   if (messageData.attachment) {
     var fileUrl = '/storage/' + messageData.attachment;
     var isImage = messageData.attachment_type && messageData.attachment_type.startsWith('image/');
@@ -2666,6 +2670,11 @@ console.log('✅ Group handler ready!');
   $(document).on('click', '.messenger-list-item:not(.group-item)', function (e) {
     e.preventDefault();
     e.stopPropagation();
+     $('#pinned-message-banner').slideUp(200);
+    window.pinnedMessageId = null;
+    fullPinnedMessageText = '';
+    fullPinnedSenderName = '';
+    $('#unpin-from-banner').hide();
 
     console.log('🔄 Switching to private chat');
 
@@ -3025,10 +3034,60 @@ console.log('✅ Group handler ready!');
     $.get('/groups/' + groupId + '/messages', {
       page: groupMessagesPage
     }, function (response) {
-      console.log('✅ Messages loaded for group:', groupId);
-      console.log('📊 Page:', response.current_page || groupMessagesPage, 'of', response.last_page || '?');
-      console.log('📊 Total messages:', response.total || '?');
-      console.log('📊 Has more:', response.has_more !== undefined ? response.has_more : true);
+      // 🔥 UPDATE PINNED MESSAGE BANNER
+    if (response.pinned_message) {
+    let pinBanner = $('#pinned-message-banner');
+    let fullText = response.pinned_message.message || 'Pinned message';
+    
+    // 🔥 STORE FULL MESSAGE FOR EXPAND/COLLAPSE
+    fullPinnedMessageText = fullText;
+    fullPinnedSenderName = response.pinned_message.sender?.name || 'Unknown';
+    
+    // Show preview (shortened) in the banner
+    let previewText = fullText.length > 60 
+        ? fullText.substring(0, 60) + '...' 
+        : fullText;
+    
+    // Update banner content
+    $('#pinned-message-preview').text(previewText);
+    $('#pinned-message-sender').text(fullPinnedSenderName);
+    
+    // 🔥 Store pinned message ID and group ID for unpin button
+    window.pinnedMessageId = response.pinned_message.id;
+    
+    // 🔥 Reset expanded state when new message is pinned
+    isPinnedExpanded = false;
+    $('#pinned-message-banner .fa-chevron-down').removeClass('fa-chevron-down').addClass('fa-chevron-right');
+    $('#pinned-message-banner').removeClass('expanded');
+    $('#pinned-message-preview').css({
+        'white-space': 'nowrap',
+        'word-wrap': 'normal',
+        'max-height': 'none',
+        'overflow-y': 'visible',
+        'display': 'inline'
+    });
+    
+    // 🔥 Update unpin button with data
+    $('#unpin-from-banner').data('message-id', response.pinned_message.id);
+    $('#unpin-from-banner').data('group-id', groupId);
+    
+    // 🔥 Check if user is admin to show unpin button
+    let isAdmin = response.is_admin || false;
+    if (isAdmin) {
+        $('#unpin-from-banner').show();
+    } else {
+        $('#unpin-from-banner').hide();
+    }
+    
+    // Show the banner
+    pinBanner.slideDown(200);
+} else {
+    $('#pinned-message-banner').slideUp(200);
+    window.pinnedMessageId = null;
+    fullPinnedMessageText = '';
+    fullPinnedSenderName = '';
+    $('#unpin-from-banner').hide();
+}
 
       // Remove load more button container
       $('#load-more-btn-container').remove();
@@ -5066,8 +5125,9 @@ function renderMentionSuggestions(users, query) {
   $('#mention-suggestions').remove();
 
   if (!users || users.length === 0) {
-    if (query && query.toLowerCase().includes('all')) {
-      showAllMentionOption();
+     // 🔥 Only show @all in GROUP chat
+    if (window.groupState?.isGroupChat) {
+        showAllMentionOption();
     }
     return;
   }
@@ -5150,7 +5210,7 @@ function renderMentionSuggestions(users, query) {
     `;
 
   // 🔥 ADD @ALL OPTION
-  if (query && query.toLowerCase().includes('all')) {
+  if (window.groupState?.isGroupChat) {
     html += `
             <div class="mention-user-item mention-all-item" data-user-id="all" data-user-name="all" style="
                 display:flex !important;
@@ -5502,10 +5562,10 @@ function showMentionToast(data) {
   const isAllMention = data.is_all_mention || false;
   const icon = isAllMention ? '📢' : '🔔';
   const mentionText = isAllMention ? 'mentioned everyone' : 'mentioned you';
-  
+
   // 🔥 Check if this is a private chat mention
   const isPrivate = data.message_type === 'private';
-  
+
   // 🔥 For private chat, show different text
   let locationText = '';
   if (isPrivate) {
@@ -5556,3 +5616,222 @@ function showMentionToast(data) {
     });
   }, 6000);
 }
+
+
+// ============================================
+// PIN/UNPIN MESSAGE
+// ============================================
+
+// Pin/Unpin message button click
+$(document).on('click', '.pin-message-btn', function (e) {
+  e.stopPropagation();
+
+  let messageId = $(this).data('message-id');
+  let groupId = $(this).data('group-id');
+  let action = $(this).data('action');
+
+  if (!messageId || !groupId) return;
+
+  let url = action === 'pin'
+    ? `/groups/${groupId}/pin-message`
+    : `/groups/${groupId}/unpin-message`;
+
+  $.ajax({
+    url: url,
+    type: 'POST',
+    data: {
+      _token: csrfToken,
+      message_id: messageId
+    },
+    success: function (response) {
+      if (response.success) {
+        // Refresh messages to show/hide pinned message
+        loadGroupMessages(groupId);
+
+        // Show notification
+        showNotificationMessage(action === 'pin'
+          ? '📌 Message pinned successfully!'
+          : '📌 Message unpinned!'
+        );
+      }
+    },
+    error: function (xhr) {
+      let error = xhr.responseJSON?.error || 'Failed to ' + action + ' message';
+      alert('❌ ' + error);
+    }
+  });
+});
+
+// Unpin from pinned message container
+$(document).on('click', '.unpin-btn', function (e) {
+  e.stopPropagation();
+
+  let messageId = $(this).data('message-id');
+  let groupId = $(this).data('group-id');
+
+  if (!messageId || !groupId) return;
+
+  $.ajax({
+    url: `/groups/${groupId}/unpin-message`,
+    type: 'POST',
+    data: {
+      _token: csrfToken,
+      message_id: messageId
+    },
+    success: function (response) {
+      if (response.success) {
+        loadGroupMessages(groupId);
+        showNotificationMessage('📌 Message unpinned!');
+      }
+    },
+    error: function (xhr) {
+      let error = xhr.responseJSON?.error || 'Failed to unpin message';
+      alert('❌ ' + error);
+    }
+  });
+});
+// ============================================
+// CLICK PINNED BANNER → EXPAND/COLLAPSE MESSAGE
+// ============================================
+
+let isPinnedExpanded = false;
+let fullPinnedMessageText = '';
+let fullPinnedSenderName = '';
+
+$(document).on('click', '#pinned-message-banner', function(e) {
+    // Don't trigger if clicking on unpin button
+    if ($(e.target).closest('.unpin-btn').length) {
+        return;
+    }
+    
+    let pinnedMessageId = window.pinnedMessageId;
+    if (!pinnedMessageId) {
+        showNotificationMessage('No pinned message found');
+        return;
+    }
+    
+    // Toggle expand/collapse
+    isPinnedExpanded = !isPinnedExpanded;
+    
+    if (isPinnedExpanded) {
+        expandPinnedMessage();
+    } else {
+        collapsePinnedMessage();
+    }
+});
+
+function expandPinnedMessage() {
+    let pinnedMessageId = window.pinnedMessageId;
+    if (!pinnedMessageId) return;
+    
+    // Find the message card to get full text
+    let messageCard = $(`.message-card[data-message-id="${pinnedMessageId}"]`);
+    
+    if (!messageCard.length) {
+        // If message not loaded, try to get from stored data
+        if (fullPinnedMessageText) {
+            showFullPinnedMessageInBanner(fullPinnedMessageText, fullPinnedSenderName);
+        } else {
+            showNotificationMessage('Loading pinned message...');
+            loadGroupMessages(window.groupState.currentGroupId);
+            
+            setTimeout(function() {
+                let messageCard = $(`.message-card[data-message-id="${pinnedMessageId}"]`);
+                if (messageCard.length) {
+                    let fullText = messageCard.find('.message-text').text().trim() || 'Pinned message';
+                    let senderName = messageCard.find('.message-user span').first().text().trim() || 'Unknown';
+                    fullPinnedMessageText = fullText;
+                    fullPinnedSenderName = senderName;
+                    showFullPinnedMessageInBanner(fullText, senderName);
+                }
+            }, 1000);
+        }
+        return;
+    }
+    
+    // Get the full message text from the card
+    let fullText = messageCard.find('.message-text').text().trim() || 'Pinned message';
+    let senderName = messageCard.find('.message-user span').first().text().trim() || 'Unknown';
+    
+    // Store for later use
+    fullPinnedMessageText = fullText;
+    fullPinnedSenderName = senderName;
+    
+    showFullPinnedMessageInBanner(fullText, senderName);
+}
+
+function showFullPinnedMessageInBanner(fullText, senderName) {
+    // Update banner to show full message
+    $('#pinned-message-preview').text(fullText);
+    $('#pinned-message-sender').text(senderName);
+    
+    // Change icon to indicate expanded
+    $('#pinned-message-banner .fa-chevron-right').removeClass('fa-chevron-right').addClass('fa-chevron-down');
+    
+    // Add expanded class for styling
+    $('#pinned-message-banner').addClass('expanded');
+    
+    // Allow full text to wrap
+    $('#pinned-message-preview').css({
+        'white-space': 'normal',
+        'word-wrap': 'break-word',
+        'max-height': '200px',
+        'overflow-y': 'auto',
+        'display': 'block'
+    });
+}
+
+function collapsePinnedMessage() {
+    // Get preview text (shortened)
+    let previewText = fullPinnedMessageText.length > 60 
+        ? fullPinnedMessageText.substring(0, 60) + '...' 
+        : fullPinnedMessageText;
+    
+    // Update banner to show preview
+    $('#pinned-message-preview').text(previewText);
+    $('#pinned-message-sender').text(fullPinnedSenderName);
+    
+    // Change icon back
+    $('#pinned-message-banner .fa-chevron-down').removeClass('fa-chevron-down').addClass('fa-chevron-right');
+    
+    // Remove expanded class
+    $('#pinned-message-banner').removeClass('expanded');
+    
+    // Reset text style
+    $('#pinned-message-preview').css({
+        'white-space': 'nowrap',
+        'word-wrap': 'normal',
+        'max-height': 'none',
+        'overflow-y': 'visible',
+        'display': 'inline'
+    });
+}
+$(document).on('click', '#unpin-from-banner', function (e) {
+    e.stopPropagation();
+    
+    let messageId = $(this).data('message-id');
+    let groupId = $(this).data('group-id');
+    
+    if (!messageId || !groupId) return;
+    
+    if (!confirm('Unpin this message?')) return;
+    
+    $.ajax({
+        url: `/groups/${groupId}/unpin-message`,
+        type: 'POST',
+        data: {
+            _token: csrfToken,
+            message_id: messageId
+        },
+        success: function (response) {
+            if (response.success) {
+                loadGroupMessages(groupId);
+                showNotificationMessage('📌 Message unpinned!');
+            }
+        },
+        error: function (xhr) {
+            let error = xhr.responseJSON?.error || 'Failed to unpin message';
+            alert('❌ ' + error);
+        }
+    });
+});

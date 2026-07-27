@@ -1,10 +1,11 @@
 <?php
 
+use App\Http\Controllers\Admin\IpAddressController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\GroupController;
-use App\Http\Controllers\Admin\IpAddressController;
 use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\ProfileController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -14,7 +15,7 @@ Route::get('/dashboard', function () {
     return redirect()->route('chatify');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-Route::middleware(['auth','ip'])->group(function () {
+Route::middleware(['auth', 'ip'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -39,13 +40,16 @@ Route::middleware(['auth','ip'])->group(function () {
     Route::post('/groups/{group}/leave', [GroupController::class, 'leaveGroup']);
     Route::post('/groups/{group}/update', [GroupController::class, 'updateGroup']);
 
+    // Pin/Unpin message
+    Route::post('/groups/{group}/pin-message', [GroupController::class, 'pinMessage'])->name('groups.pin-message');
+    Route::post('/groups/{group}/unpin-message', [GroupController::class, 'unpinMessage'])->name('groups.unpin-message');
+    // Get pinned messages
+    Route::get('/groups/{group}/pinned-messages', [GroupController::class, 'getPinnedMessages'])->name('groups.pinned-messages');
 
     // Message Reactions Routes
     Route::post('/reactions/toggle-private', [MessageReactionController::class, 'togglePrivateReaction']);
     Route::post('/reactions/toggle-group', [MessageReactionController::class, 'toggleGroupReaction']);
     Route::post('/reactions/get', [MessageReactionController::class, 'getReactions']);
-
-
 
     Route::prefix('admin')->group(function () {
         // User Management Routes
@@ -73,16 +77,17 @@ Route::middleware(['auth','ip'])->group(function () {
     });
 
     Route::get('/users/{id}', function ($id) {
-    $user = App\Models\User::find($id);
-    if ($user) {
-        return response()->json([
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'avatar' => $user->avatar,
-        ]);
-    }
-    return response()->json(['error' => 'User not found'], 404);
+        $user = User::find($id);
+        if ($user) {
+            return response()->json([
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar' => $user->avatar,
+            ]);
+        }
+
+        return response()->json(['error' => 'User not found'], 404);
+    });
 });
-});
-require __DIR__ . '/auth.php';
+require __DIR__.'/auth.php';

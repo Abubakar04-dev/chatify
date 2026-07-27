@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Events\GroupMessageSent;
 use App\Events\MentionEvent;
+use App\Events\MessagePinnedEvent;
 use App\Models\ChatGroup;
 use App\Models\ChatGroupMember;
 use App\Models\ChatGroupMessage;
 use App\Models\ChatGroupRead;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -165,9 +167,10 @@ class GroupController extends Controller
         $page = request()->get('page', 1);
         $perPage = 50; // Load 50 messages at a time
 
-        // 🔥 LOAD MESSAGES WITH PAGINATION
+        //  LOAD MESSAGES WITH PAGINATION
         $paginated = ChatGroupMessage::where('group_id', $group->id)
             ->with('sender')
+            ->with('pinnedBy')
             ->with(['replyTo' => function ($q) {
                 $q->with('sender');
             }])
@@ -176,11 +179,16 @@ class GroupController extends Controller
                     $query->select('id', 'name', 'avatar');
                 }]);
             }])
-            ->orderBy('id', 'desc')  // 🔥 Order by newest first for pagination
+            ->orderBy('id', 'desc')  //  Order by newest first for pagination
             ->paginate($perPage, ['*'], 'page', $page);
 
-        // 🔥 Reverse to show oldest first (for display)
+        //  Reverse to show oldest first (for display)
         $messages = $paginated->reverse();
+
+        $pinnedMessage = ChatGroupMessage::where('group_id', $group->id)
+            ->where('is_pinned', true)
+            ->with(['sender', 'pinnedBy'])
+            ->first();
 
         $html = '';
         $lastDate = null;
@@ -188,6 +196,7 @@ class GroupController extends Controller
         if ($messages->isEmpty()) {
             $html = '<div class="message-hint" style="text-align:center;padding:40px;color:#999;">No messages yet. Say hi!</div>';
         } else {
+
             foreach ($messages as $msg) {
                 $isMe = $msg->sender_id == auth()->id();
 
@@ -209,7 +218,10 @@ class GroupController extends Controller
                 // Add text message
                 if ($msg->message) {
                     // 🔥 Highlight @words - matches everything after @ until next @ or end
-                    $highlighted = preg_replace('/@([a-zA-Z0-9_\s]+?)(?=[\s]|$|@)/', '<span class="mention-text">@$1</span>', e($msg->message));
+                   $messageText = e($msg->message);
+                    $messageText = preg_replace('/(https?:\/\/[^\s]+)/', '<a href="$1" target="_blank" class="message-link">$1</a>', $messageText);
+                    // 🔥 Then highlight @mentions
+                    $highlighted = preg_replace('/@([a-zA-Z0-9_\s]+?)(?=[\s]|$|@)/', '<span class="mention-text">@$1</span>', $messageText);
                     $messageContent .= '<div class="message-text">'.$highlighted.'</div>';
                 }
 
@@ -260,6 +272,7 @@ class GroupController extends Controller
                             </button>
                         </div>
                     </div>
+                    '.$this->getPinMessageButton($msg).'
                     '.$replyHtml.'  <!-- 🔥 ADD THIS LINE -->
                     '.$messageContent.'
                     '.$reactionsHtml.'
@@ -269,6 +282,13 @@ class GroupController extends Controller
             }
         }
 
+        $isAdmin = $group->members()
+            ->where('user_id', auth()->id())
+            ->where('is_admin', true)
+            ->exists();
+
+        $isCreator = $group->created_by == auth()->id();
+
         return response()->json([
             'group' => [
                 'id' => $group->id,
@@ -277,11 +297,134 @@ class GroupController extends Controller
                 'type' => $group->type,
             ],
             'messages_html' => $html,
+            'is_admin' => $isAdmin || $isCreator,
+            'pinned_message' => $pinnedMessage,
             'current_page' => $paginated->currentPage(),
             'last_page' => $paginated->lastPage(),
             'total' => $paginated->total(),
             'has_more' => $paginated->hasMorePages(), // 🔥 Tells frontend if more messages exist
         ]);
+    }
+
+    /**
+     * 🔥 Build pinned message HTML
+     */
+    private function buildPinnedMessageHtml($message)
+    {
+        $isMe = $message->sender_id == auth()->id();
+        $pinnedBy = $message->pinnedBy ? $message->pinnedBy->name : 'Admin';
+        $timeDisplay = $message->pinned_at ? Carbon::parse($message->pinned_at)->format('h:i A') : '';
+        $dateDisplay = $message->pinned_at ? Carbon::parse($message->pinned_at)->format('M d, Y') : '';
+
+        $messageContent = '';
+        if ($message->message) {
+            $messageContent .= '<div class="message-text">'.e($message->message).'</div>';
+        }
+
+        // If message has attachment
+        if ($message->attachment) {
+            $fileUrl = asset('storage/'.$message->attachment);
+            $isImage = str_starts_with($message->attachment_type ?? '', 'image/');
+
+            if ($isImage) {
+                $messageContent .= '<div class="chat-image" style="background-image: url('.$fileUrl.'); max-width:150px; max-height:150px; background-size:cover; background-position:center; border-radius:8px; margin-top:5px; cursor:pointer;"></div>';
+            } else {
+                $fileName = basename($message->attachment);
+                $messageContent .= '<div class="file-attachment" style="padding:6px 10px; background:#f1f2f6; border-radius:6px; margin-top:4px; display:inline-block;">';
+                $messageContent .= '<i class="fas fa-paperclip" style="font-size:12px;"></i> <a href="'.$fileUrl.'" target="_blank" style="color:#0984e3; text-decoration:none; font-size:13px;">'.$fileName.'</a>';
+                $messageContent .= '</div>';
+            }
+        }
+
+        return '
+    <div class="pinned-message-container" style="
+        background: #f8f9fa;
+        border-left: 4px solid #667eea;
+        padding: 10px 15px;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        position: relative;
+    ">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="color:#667eea; font-size:12px; font-weight:600;">
+                📌 Pinned Message
+            </span>
+            <span style="color:#b2bec3; font-size:10px;">
+                by '.e($pinnedBy).' · '.$dateDisplay.' '.$timeDisplay.'
+            </span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div style="flex:1;">
+                <div style="font-size:12px; color:#636e72; font-weight:600;">
+                    '.($isMe ? 'You' : e($message->sender->name)).'
+                </div>
+                '.$messageContent.'
+            </div>
+            '.$this->getPinnedActionsHtml($message).'
+        </div>
+    </div>
+    ';
+    }
+
+    /**
+     * 🔥 Get unpin button for pinned message (Admin only)
+     */
+    private function getPinnedActionsHtml($message)
+    {
+        // Check if user is admin or creator
+        $isAdmin = $message->group->members()
+            ->where('user_id', auth()->id())
+            ->where('is_admin', true)
+            ->exists();
+
+        $isCreator = $message->group->created_by == auth()->id();
+
+        if (! $isAdmin && ! $isCreator) {
+            return '';
+        }
+
+        return '
+    <button class="unpin-btn" 
+            data-message-id="'.$message->id.'"
+            data-group-id="'.$message->group_id.'"
+            style="background:none; border:none; color:#b2bec3; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; transition:all 0.2s;">
+        <i class="fas fa-thumbtack"></i> Unpin
+    </button>
+    ';
+    }
+
+    /**
+     * 🔥 Get pin/unpin button for a message (Admin only)
+     */
+    private function getPinMessageButton($message)
+    {
+        // Check if user is admin or creator
+        $isAdmin = $message->group->members()
+            ->where('user_id', auth()->id())
+            ->where('is_admin', true)
+            ->exists();
+
+        $isCreator = $message->group->created_by == auth()->id();
+
+        if (! $isAdmin && ! $isCreator) {
+            return '';
+        }
+
+        $isPinned = $message->is_pinned ?? false;
+        $icon = $isPinned ? 'fa-thumbtack' : 'fa-thumbtack';
+        $text = $isPinned ? 'Unpin' : 'Pin';
+        $action = $isPinned ? 'unpin' : 'pin';
+        $color = $isPinned ? '#667eea' : '#b2bec3';
+
+        return '
+    <button class="pin-message-btn" 
+            data-message-id="'.$message->id.'"
+            data-group-id="'.$message->group_id.'"
+            data-action="'.$action.'"
+            style="background:none; border:none; color:'.$color.'; cursor:pointer; font-size:12px; padding:2px 6px; border-radius:4px; transition:all 0.2s;">
+        <i class="fas '.$icon.'"></i> '.$text.'
+    </button>
+    ';
     }
 
     // 🔥 HELPER FUNCTION: Build reply preview HTML
@@ -742,6 +885,104 @@ class GroupController extends Controller
             'success' => true,
             'message' => 'Group updated successfully',
             'group' => $group,
+        ]);
+    }
+
+    public function pinMessage(Request $request, ChatGroup $group)
+    {
+        $request->validate([
+            'message_id' => 'required|exists:chat_group_messages,id',
+        ]);
+
+        // Check if user is admin or creator
+        $isAdmin = $group->members()
+            ->where('user_id', auth()->id())
+            ->where('is_admin', true)
+            ->exists();
+
+        $isCreator = $group->created_by == auth()->id();
+
+        if (! $isAdmin && ! $isCreator) {
+            return response()->json(['error' => 'Only admins can pin messages'], 403);
+        }
+
+        $message = ChatGroupMessage::where('group_id', $group->id)
+            ->where('id', $request->message_id)
+            ->firstOrFail();
+
+        // Unpin any previously pinned message (only one pin at a time)
+        ChatGroupMessage::where('group_id', $group->id)
+            ->where('is_pinned', true)
+            ->update([
+                'is_pinned' => false,
+                'pinned_at' => null,
+                'pinned_by' => null,
+            ]);
+
+        // Pin this message
+        $message->update([
+            'is_pinned' => true,
+            'pinned_at' => now(),
+            'pinned_by' => auth()->id(),
+        ]);
+
+        // Load relationships
+        $message->load(['sender', 'pinnedBy']);
+
+        // Broadcast event
+        broadcast(new MessagePinnedEvent($message, $group, 'pinned'))->toOthers();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Message pinned successfully',
+            'pinned_message' => $message,
+        ]);
+    }
+
+    /**
+     * Unpin a message
+     */
+    public function unpinMessage(Request $request, ChatGroup $group)
+    {
+        // Check if user is admin or creator
+        $isAdmin = $group->members()
+            ->where('user_id', auth()->id())
+            ->where('is_admin', true)
+            ->exists();
+
+        $isCreator = $group->created_by == auth()->id();
+
+        if (! $isAdmin && ! $isCreator) {
+            return response()->json(['error' => 'Only admins can unpin messages'], 403);
+        }
+
+        // Unpin the current pinned message
+        ChatGroupMessage::where('group_id', $group->id)
+            ->where('is_pinned', true)
+            ->update([
+                'is_pinned' => false,
+                'pinned_at' => null,
+                'pinned_by' => null,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Message unpinned successfully',
+        ]);
+    }
+
+    /**
+     * Get pinned messages for a group
+     */
+    public function getPinnedMessages(ChatGroup $group)
+    {
+        $pinnedMessage = ChatGroupMessage::where('group_id', $group->id)
+            ->where('is_pinned', true)
+            ->with(['sender', 'pinnedBy'])
+            ->first();
+
+        return response()->json([
+            'pinned_message' => $pinnedMessage,
         ]);
     }
 }
