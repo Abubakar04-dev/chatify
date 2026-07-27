@@ -838,18 +838,30 @@ channel.bind("messaging", function (data) {
     }
 
     // Get sender name from sidebar
-    let senderName =
-      $(".messenger-list-item[data-contact='" + data.from_id + "']")
-        .find("*")
-        .filter(function () {
-          return $(this).children().length === 0;
-        })
-        .first()
-        .text()
-        .trim();
+    let senderName = "New Message";
 
-    new Notification(senderName || "New Message", {
-      body: messageText || "Sent you a message",
+    // Find the contact in sidebar
+    const contactItem = $(".messenger-list-item[data-contact='" + data.from_id + "']");
+    if (contactItem.length) {
+      const nameEl = contactItem.find('p[data-id]');
+      if (nameEl.length) {
+        senderName = nameEl.text().trim();
+      }
+    }
+
+    // If not found, try the header
+    if (!senderName || senderName === "New Message") {
+      const headerName = $(".m-header-messaging .user-name").text().trim();
+      if (headerName && headerName !== "Select a chat") {
+        senderName = headerName;
+      }
+    }
+
+    // 🔥 Remove time from message
+    let cleanMessage = (messageText || "Sent you a message").replace(/\d+\s*(seconds?|sec|minutes?|mins?|hours?|hrs?|days?|d)\s*ago/gi, '').trim();
+
+    new Notification(senderName, {
+      body: cleanMessage,
       icon: "/at-law-logo.webp",
     });
   }
@@ -2388,14 +2400,14 @@ function handleGroupMessage(data) {
 
 
   var msgHtml = '';
-if (messageData.message) {
+  if (messageData.message) {
     var msgText = messageData.message;
     // 🔥 STEP 1: Convert URLs to clickable links
     msgText = msgText.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" class="message-link">$1</a>');
     // 🔥 STEP 2: Highlight @mentions
     var highlightedMsg = msgText.replace(/@([a-zA-Z0-9_\s]+?)(?=\s|$|[.,!?;:])/g, '<span class="mention-text">@$1</span>');
     msgHtml += '<div class="message-text">' + highlightedMsg + '</div>';
-}
+  }
   if (messageData.attachment) {
     var fileUrl = '/storage/' + messageData.attachment;
     var isImage = messageData.attachment_type && messageData.attachment_type.startsWith('image/');
@@ -2670,7 +2682,7 @@ console.log('✅ Group handler ready!');
   $(document).on('click', '.messenger-list-item:not(.group-item)', function (e) {
     e.preventDefault();
     e.stopPropagation();
-     $('#pinned-message-banner').slideUp(200);
+    $('#pinned-message-banner').slideUp(200);
     window.pinnedMessageId = null;
     fullPinnedMessageText = '';
     fullPinnedSenderName = '';
@@ -3035,59 +3047,59 @@ console.log('✅ Group handler ready!');
       page: groupMessagesPage
     }, function (response) {
       // 🔥 UPDATE PINNED MESSAGE BANNER
-    if (response.pinned_message) {
-    let pinBanner = $('#pinned-message-banner');
-    let fullText = response.pinned_message.message || 'Pinned message';
-    
-    // 🔥 STORE FULL MESSAGE FOR EXPAND/COLLAPSE
-    fullPinnedMessageText = fullText;
-    fullPinnedSenderName = response.pinned_message.sender?.name || 'Unknown';
-    
-    // Show preview (shortened) in the banner
-    let previewText = fullText.length > 60 
-        ? fullText.substring(0, 60) + '...' 
-        : fullText;
-    
-    // Update banner content
-    $('#pinned-message-preview').text(previewText);
-    $('#pinned-message-sender').text(fullPinnedSenderName);
-    
-    // 🔥 Store pinned message ID and group ID for unpin button
-    window.pinnedMessageId = response.pinned_message.id;
-    
-    // 🔥 Reset expanded state when new message is pinned
-    isPinnedExpanded = false;
-    $('#pinned-message-banner .fa-chevron-down').removeClass('fa-chevron-down').addClass('fa-chevron-right');
-    $('#pinned-message-banner').removeClass('expanded');
-    $('#pinned-message-preview').css({
-        'white-space': 'nowrap',
-        'word-wrap': 'normal',
-        'max-height': 'none',
-        'overflow-y': 'visible',
-        'display': 'inline'
-    });
-    
-    // 🔥 Update unpin button with data
-    $('#unpin-from-banner').data('message-id', response.pinned_message.id);
-    $('#unpin-from-banner').data('group-id', groupId);
-    
-    // 🔥 Check if user is admin to show unpin button
-    let isAdmin = response.is_admin || false;
-    if (isAdmin) {
-        $('#unpin-from-banner').show();
-    } else {
+      if (response.pinned_message) {
+        let pinBanner = $('#pinned-message-banner');
+        let fullText = response.pinned_message.message || 'Pinned message';
+
+        // 🔥 STORE FULL MESSAGE FOR EXPAND/COLLAPSE
+        fullPinnedMessageText = fullText;
+        fullPinnedSenderName = response.pinned_message.sender?.name || 'Unknown';
+
+        // Show preview (shortened) in the banner
+        let previewText = fullText.length > 60
+          ? fullText.substring(0, 60) + '...'
+          : fullText;
+
+        // Update banner content
+        $('#pinned-message-preview').text(previewText);
+        $('#pinned-message-sender').text(fullPinnedSenderName);
+
+        // 🔥 Store pinned message ID and group ID for unpin button
+        window.pinnedMessageId = response.pinned_message.id;
+
+        // 🔥 Reset expanded state when new message is pinned
+        isPinnedExpanded = false;
+        $('#pinned-message-banner .fa-chevron-down').removeClass('fa-chevron-down').addClass('fa-chevron-right');
+        $('#pinned-message-banner').removeClass('expanded');
+        $('#pinned-message-preview').css({
+          'white-space': 'nowrap',
+          'word-wrap': 'normal',
+          'max-height': 'none',
+          'overflow-y': 'visible',
+          'display': 'inline'
+        });
+
+        // 🔥 Update unpin button with data
+        $('#unpin-from-banner').data('message-id', response.pinned_message.id);
+        $('#unpin-from-banner').data('group-id', groupId);
+
+        // 🔥 Check if user is admin to show unpin button
+        let isAdmin = response.is_admin || false;
+        if (isAdmin) {
+          $('#unpin-from-banner').show();
+        } else {
+          $('#unpin-from-banner').hide();
+        }
+
+        // Show the banner
+        pinBanner.slideDown(200);
+      } else {
+        $('#pinned-message-banner').slideUp(200);
+        window.pinnedMessageId = null;
+        fullPinnedMessageText = '';
+        fullPinnedSenderName = '';
         $('#unpin-from-banner').hide();
-    }
-    
-    // Show the banner
-    pinBanner.slideDown(200);
-} else {
-    $('#pinned-message-banner').slideUp(200);
-    window.pinnedMessageId = null;
-    fullPinnedMessageText = '';
-    fullPinnedSenderName = '';
-    $('#unpin-from-banner').hide();
-}
+      }
 
       // Remove load more button container
       $('#load-more-btn-container').remove();
@@ -5125,9 +5137,9 @@ function renderMentionSuggestions(users, query) {
   $('#mention-suggestions').remove();
 
   if (!users || users.length === 0) {
-     // 🔥 Only show @all in GROUP chat
+    // 🔥 Only show @all in GROUP chat
     if (window.groupState?.isGroupChat) {
-        showAllMentionOption();
+      showAllMentionOption();
     }
     return;
   }
@@ -5698,140 +5710,140 @@ let isPinnedExpanded = false;
 let fullPinnedMessageText = '';
 let fullPinnedSenderName = '';
 
-$(document).on('click', '#pinned-message-banner', function(e) {
-    // Don't trigger if clicking on unpin button
-    if ($(e.target).closest('.unpin-btn').length) {
-        return;
-    }
-    
-    let pinnedMessageId = window.pinnedMessageId;
-    if (!pinnedMessageId) {
-        showNotificationMessage('No pinned message found');
-        return;
-    }
-    
-    // Toggle expand/collapse
-    isPinnedExpanded = !isPinnedExpanded;
-    
-    if (isPinnedExpanded) {
-        expandPinnedMessage();
-    } else {
-        collapsePinnedMessage();
-    }
+$(document).on('click', '#pinned-message-banner', function (e) {
+  // Don't trigger if clicking on unpin button
+  if ($(e.target).closest('.unpin-btn').length) {
+    return;
+  }
+
+  let pinnedMessageId = window.pinnedMessageId;
+  if (!pinnedMessageId) {
+    showNotificationMessage('No pinned message found');
+    return;
+  }
+
+  // Toggle expand/collapse
+  isPinnedExpanded = !isPinnedExpanded;
+
+  if (isPinnedExpanded) {
+    expandPinnedMessage();
+  } else {
+    collapsePinnedMessage();
+  }
 });
 
 function expandPinnedMessage() {
-    let pinnedMessageId = window.pinnedMessageId;
-    if (!pinnedMessageId) return;
-    
-    // Find the message card to get full text
-    let messageCard = $(`.message-card[data-message-id="${pinnedMessageId}"]`);
-    
-    if (!messageCard.length) {
-        // If message not loaded, try to get from stored data
-        if (fullPinnedMessageText) {
-            showFullPinnedMessageInBanner(fullPinnedMessageText, fullPinnedSenderName);
-        } else {
-            showNotificationMessage('Loading pinned message...');
-            loadGroupMessages(window.groupState.currentGroupId);
-            
-            setTimeout(function() {
-                let messageCard = $(`.message-card[data-message-id="${pinnedMessageId}"]`);
-                if (messageCard.length) {
-                    let fullText = messageCard.find('.message-text').text().trim() || 'Pinned message';
-                    let senderName = messageCard.find('.message-user span').first().text().trim() || 'Unknown';
-                    fullPinnedMessageText = fullText;
-                    fullPinnedSenderName = senderName;
-                    showFullPinnedMessageInBanner(fullText, senderName);
-                }
-            }, 1000);
+  let pinnedMessageId = window.pinnedMessageId;
+  if (!pinnedMessageId) return;
+
+  // Find the message card to get full text
+  let messageCard = $(`.message-card[data-message-id="${pinnedMessageId}"]`);
+
+  if (!messageCard.length) {
+    // If message not loaded, try to get from stored data
+    if (fullPinnedMessageText) {
+      showFullPinnedMessageInBanner(fullPinnedMessageText, fullPinnedSenderName);
+    } else {
+      showNotificationMessage('Loading pinned message...');
+      loadGroupMessages(window.groupState.currentGroupId);
+
+      setTimeout(function () {
+        let messageCard = $(`.message-card[data-message-id="${pinnedMessageId}"]`);
+        if (messageCard.length) {
+          let fullText = messageCard.find('.message-text').text().trim() || 'Pinned message';
+          let senderName = messageCard.find('.message-user span').first().text().trim() || 'Unknown';
+          fullPinnedMessageText = fullText;
+          fullPinnedSenderName = senderName;
+          showFullPinnedMessageInBanner(fullText, senderName);
         }
-        return;
+      }, 1000);
     }
-    
-    // Get the full message text from the card
-    let fullText = messageCard.find('.message-text').text().trim() || 'Pinned message';
-    let senderName = messageCard.find('.message-user span').first().text().trim() || 'Unknown';
-    
-    // Store for later use
-    fullPinnedMessageText = fullText;
-    fullPinnedSenderName = senderName;
-    
-    showFullPinnedMessageInBanner(fullText, senderName);
+    return;
+  }
+
+  // Get the full message text from the card
+  let fullText = messageCard.find('.message-text').text().trim() || 'Pinned message';
+  let senderName = messageCard.find('.message-user span').first().text().trim() || 'Unknown';
+
+  // Store for later use
+  fullPinnedMessageText = fullText;
+  fullPinnedSenderName = senderName;
+
+  showFullPinnedMessageInBanner(fullText, senderName);
 }
 
 function showFullPinnedMessageInBanner(fullText, senderName) {
-    // Update banner to show full message
-    $('#pinned-message-preview').text(fullText);
-    $('#pinned-message-sender').text(senderName);
-    
-    // Change icon to indicate expanded
-    $('#pinned-message-banner .fa-chevron-right').removeClass('fa-chevron-right').addClass('fa-chevron-down');
-    
-    // Add expanded class for styling
-    $('#pinned-message-banner').addClass('expanded');
-    
-    // Allow full text to wrap
-    $('#pinned-message-preview').css({
-        'white-space': 'normal',
-        'word-wrap': 'break-word',
-        'max-height': '200px',
-        'overflow-y': 'auto',
-        'display': 'block'
-    });
+  // Update banner to show full message
+  $('#pinned-message-preview').text(fullText);
+  $('#pinned-message-sender').text(senderName);
+
+  // Change icon to indicate expanded
+  $('#pinned-message-banner .fa-chevron-right').removeClass('fa-chevron-right').addClass('fa-chevron-down');
+
+  // Add expanded class for styling
+  $('#pinned-message-banner').addClass('expanded');
+
+  // Allow full text to wrap
+  $('#pinned-message-preview').css({
+    'white-space': 'normal',
+    'word-wrap': 'break-word',
+    'max-height': '200px',
+    'overflow-y': 'auto',
+    'display': 'block'
+  });
 }
 
 function collapsePinnedMessage() {
-    // Get preview text (shortened)
-    let previewText = fullPinnedMessageText.length > 60 
-        ? fullPinnedMessageText.substring(0, 60) + '...' 
-        : fullPinnedMessageText;
-    
-    // Update banner to show preview
-    $('#pinned-message-preview').text(previewText);
-    $('#pinned-message-sender').text(fullPinnedSenderName);
-    
-    // Change icon back
-    $('#pinned-message-banner .fa-chevron-down').removeClass('fa-chevron-down').addClass('fa-chevron-right');
-    
-    // Remove expanded class
-    $('#pinned-message-banner').removeClass('expanded');
-    
-    // Reset text style
-    $('#pinned-message-preview').css({
-        'white-space': 'nowrap',
-        'word-wrap': 'normal',
-        'max-height': 'none',
-        'overflow-y': 'visible',
-        'display': 'inline'
-    });
+  // Get preview text (shortened)
+  let previewText = fullPinnedMessageText.length > 60
+    ? fullPinnedMessageText.substring(0, 60) + '...'
+    : fullPinnedMessageText;
+
+  // Update banner to show preview
+  $('#pinned-message-preview').text(previewText);
+  $('#pinned-message-sender').text(fullPinnedSenderName);
+
+  // Change icon back
+  $('#pinned-message-banner .fa-chevron-down').removeClass('fa-chevron-down').addClass('fa-chevron-right');
+
+  // Remove expanded class
+  $('#pinned-message-banner').removeClass('expanded');
+
+  // Reset text style
+  $('#pinned-message-preview').css({
+    'white-space': 'nowrap',
+    'word-wrap': 'normal',
+    'max-height': 'none',
+    'overflow-y': 'visible',
+    'display': 'inline'
+  });
 }
 $(document).on('click', '#unpin-from-banner', function (e) {
-    e.stopPropagation();
-    
-    let messageId = $(this).data('message-id');
-    let groupId = $(this).data('group-id');
-    
-    if (!messageId || !groupId) return;
-    
-    if (!confirm('Unpin this message?')) return;
-    
-    $.ajax({
-        url: `/groups/${groupId}/unpin-message`,
-        type: 'POST',
-        data: {
-            _token: csrfToken,
-            message_id: messageId
-        },
-        success: function (response) {
-            if (response.success) {
-                loadGroupMessages(groupId);
-                showNotificationMessage('📌 Message unpinned!');
-            }
-        },
-        error: function (xhr) {
-            let error = xhr.responseJSON?.error || 'Failed to unpin message';
-            alert('❌ ' + error);
-        }
-    });
+  e.stopPropagation();
+
+  let messageId = $(this).data('message-id');
+  let groupId = $(this).data('group-id');
+
+  if (!messageId || !groupId) return;
+
+  if (!confirm('Unpin this message?')) return;
+
+  $.ajax({
+    url: `/groups/${groupId}/unpin-message`,
+    type: 'POST',
+    data: {
+      _token: csrfToken,
+      message_id: messageId
+    },
+    success: function (response) {
+      if (response.success) {
+        loadGroupMessages(groupId);
+        showNotificationMessage('📌 Message unpinned!');
+      }
+    },
+    error: function (xhr) {
+      let error = xhr.responseJSON?.error || 'Failed to unpin message';
+      alert('❌ ' + error);
+    }
+  });
 });
