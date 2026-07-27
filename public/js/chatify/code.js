@@ -1718,7 +1718,7 @@ $(document).ready(function () {
       // if shift + enter key pressed, do nothing (new line).
       // if only enter key pressed, send message.
       if (!e.shiftKey) {
-        triggered = isTyping(false);
+        // triggered = isTyping(false);
         sendMessage();
       }
     }
